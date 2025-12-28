@@ -1,0 +1,11 @@
+﻿<div class="mb-6">
+  <div class="flex items-center gap-3">
+    <a href="/" class="inline-flex items-center gap-2">
+      <% if (brand?.logo_url) { %>
+        <img src="<%= brand.logo_url %>" alt="Logo" class="h-9 w-auto">
+      <% } %>
+      <span class="text-xl font-semibold"><%= brand?.firm_name || 'Case Manager' %></span>
+    </a>
+    <a href="/cases" class="ml-4 hover:underline">All Cases</a>
+  </div>
+</div>

@@ -1,0 +1,676 @@
+<%- include('partials/head') %>
+<%- include('partials/nav') %>
+
+<%
+  const c = item || {};
+  const lit = (c.litigationStatus || 'pre').toLowerCase();
+  const maxP = lit === 'litigation' ? 5 : 3;
+  const P = c.phaseTasks || {1:[],2:[],3:[],4:[],5:[]};
+  const phaseMap = (typeof phaseNames !== 'undefined' && phaseNames) ? phaseNames : {
+    1: 'Start Case',
+    2: 'Manage Medical & Investigation',
+    3: (lit === 'litigation' ? 'File Suit & Discovery' : 'Demand & Settlement'),
+    4: 'Trial',
+    5: 'Demand & Settlement'
+  };
+  const providerList = Array.isArray(providers) ? providers : [];
+
+  function categoryFor(title){
+    const t = String(title || '').trim().toLowerCase();
+    if (/^chiro\b/.test(t)) return 'chiro';
+    if (/^mri\b/.test(t)) return 'mri';
+    if (/^diagnostic testing\b/.test(t)) return 'diagnostic';
+    if (/^pain management\b/.test(t)) return 'pain';
+    if (/^orthopedic\b/.test(t)) return 'orthopedic';
+    if (/^psychologist\b/.test(t)) return 'psychologist';
+    return null;
+  }
+%>
+
+<style>
+  .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+  .sticky-title{ position:sticky; top:0; z-index:40; background:rgba(255,255,255,.95); backdrop-filter:saturate(180%) blur(6px); border-bottom:1px solid #e5e7eb; }
+  .ring-bar{ position:sticky; top:56px; z-index:35; }
+  .ring-row{ display:flex; justify-content:center; align-items:center; gap:1rem; flex-wrap:wrap; padding:.6rem .75rem; background:#fff; border:1px solid #e5e7eb; border-radius:.75rem; box-shadow:0 2px 8px rgba(0,0,0,.06); min-height:110px; }
+  .ring-item{ display:flex; flex-direction:column; align-items:center; min-width:98px; }
+  .ring-btn{ background:transparent; border:none; color:inherit; cursor:pointer; padding:.25rem; border-radius:.5rem; }
+  .open-label{ margin-top:.25rem; font-size:14px; font-weight:700; color:#111827; }
+  .panel{ display:none; }
+  ul{ list-style:none; margin:0; padding:0 }
+  .row{ display:flex; gap:.5rem; align-items:center; padding:.5rem .75rem; border-top:1px solid #e5e7eb }
+  .row .title{ flex:1 1 auto; min-width:0; color:#111827; display:flex; align-items:center; flex-wrap:wrap; gap:.5rem }
+  .subs{ margin-left:1.75rem }
+  section.phase{ background:#fff; border:1px solid #e5e7eb !important; border-radius:8px !important; overflow:hidden; }
+  .btn-icon{ border:1px solid #e5e7eb; border-radius:6px; padding:2px 6px; font-size:12px; background:#fff; cursor:pointer }
+  .btn-icon[disabled]{ opacity:.4; cursor:not-allowed }
+  @media (max-width:600px){ .ring-row{ flex-direction:column; gap:.75rem } .row{ padding:.6rem .5rem } }
+</style>
+
+<div class="sticky-title px-3 py-2">
+  <div class="flex items-center justify-between">
+    <div>
+      <h1 class="text-xl font-semibold text-gray-900"><%= c.clientName %></h1>
+      <div class="text-xs text-gray-700">
+        <span><strong>Type:</strong> <%= (item && item.typeOfCase) || (c && c.typeOfCase) || '-' %></span>
+        ? <span><strong>Incident:</strong> <%= (item && item.dateOfIncident) || (c && c.dateOfIncident) || '-' %></span>
+      </div>
+      <div class="text-xs text-gray-700">
+        <span>Litigation: <strong><%= (c.litigationStatus||'pre')==='litigation'?'Litigation':'Pre Litigation' %></strong></span>
+      </div>
+    </div>
+    <div class="flex items-center gap-2">
+      <a class="underline text-sm" href="/cases/<%= c.id %>/edit">Edit Case</a>
+      <form method="post" action="/cases/<%= c.id %>/delete" onsubmit="return confirm('Delete this case?')">
+        <button class="text-red-600 underline text-sm">Delete</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class="ring-bar" role="tablist" aria-label="Phase Progress">
+  <div class="ring-row">
+    <% for(let p=1;p<=maxP;p++){
+         const arr = (P[p]||[]).filter(t=>!t.deleted_at);
+         let total=0, done=0;
+         arr.forEach(t=>{ total += 1; if (t.done) done += 1; (t.children||[]).filter(x=>!x.deleted_at).forEach(st=>{ total+=1; if (st.done) done+=1 }) })
+         const label = `Phase ${p}`, hover = `${label} - ${phaseMap[p]}: ${done}/${total} complete`;
+         const open = Math.max(0, total-done);
+    %>
+      <div class="ring-item" data-phase="<%=p%>" aria-label="<%= label %>">
+        <button class="ring-btn" data-ring data-phase="<%=p%>" role="tab" aria-controls="phase-panel-<%=p%>" aria-selected="false" title="<%= hover %>">
+          <%- include('partials/ring-dual', { label, total, done, hover }) %>
+        </button>
+        <div class="open-label js-open-label" data-phase="<%=p%>">Open Tasks: <%= open %></div>
+      </div>
+    <% } %>
+  </div>
+</div>
+
+<div class="px-3 py-3 space-y-3" id="phasesRoot">
+  <% for (let p=1;p<=maxP;p++){ const arr = (P[p]||[]).filter(t=>!t.deleted_at); %>
+    <section class="phase border border-gray-300 rounded-md" id="phase-<%=p%>">
+      <header class="phase-h" style="display:flex;justify-content:space-between;align-items:center;padding:.6rem .75rem">
+        <div class="phase-t" style="font-weight:600;color:#111827">
+          <span>Phase <%=p%> - <%= phaseMap[p] %></span>
+        </div>
+        <button type="button" class="text-sm underline" data-toggle data-phase="<%=p%>" aria-controls="phase-panel-<%=p%>" aria-expanded="false">Expand</button>
+      </header>
+
+      <div id="phase-panel-<%=p%>" class="panel" hidden data-open="false">
+        <ul>
+          <% (arr||[]).forEach(t=>{ const tip = `${t.title}: ${t.done?'Complete':'Not Complete'}`; %>
+            <li class="row" data-task data-taskid="<%=t.id%>" data-phase="<%=p%>">
+              <input type="checkbox" class="js-task-toggle mt-0.5"
+                     data-url="/cases/<%= c.id %>/phase/<%=p%>/tasks/<%=t.id%>/toggle"
+                     aria-label="Toggle complete" <%= t.done?'checked':'' %>>
+              <img class="js-task-icon"
+                   src="<%= t.done ? '/assets/icons/chlf-status-tree-green.svg' : '/assets/icons/chlf-status-tree-red.svg' %>"
+                   alt="<%= tip %>" title="<%= tip %>" style="width:18px;height:18px">
+
+              <div class="title">
+                <%= t.title %>
+                <% /* Settlement check types: single-row, intuitive layout (label | chips | select+add) */ %>
+                <% if (/settlement\s*check\s*received\??/i.test(String(t.title||'').trim())) { 
+                     var _checks = (t.meta && Array.isArray(t.meta.settlementChecks)) ? t.meta.settlementChecks : []; %>
+                  <div class="mt-2 pl-6">
+                    <div class="flex items-center flex-wrap gap-2">
+                      <!-- Left: label -->
+                      <div class="text-sm text-gray-600">Check Type</div>
+
+                      <!-- Middle: chips (grow; wrap only chips) -->
+                      <div class="flex items-center flex-wrap gap-2" style="flex:1 1 auto; min-width:200px;">
+                        <% if (_checks.length) { %>
+                          <% _checks.forEach(function(ck, idx){ %>
+                            <form method="post"
+                                  action="/cases/<%= c.id %>/phase/<%= p %>/tasks/<%= t.id %>/checks/remove/<%= idx %>"
+                                  class="inline">
+                              <span class="inline-flex items-center border rounded-full px-2 py-0.5 text-sm">
+                                <%= ck %>
+                                <button type="submit"
+                                        class="ml-2 text-red-600"
+                                        title="Remove"
+                                        aria-label="Remove"
+                                        style="margin-left:8px;">&times;</button>
+                              </span>
+                            </form>
+                          <% }) %>
+                        <% } else { %>
+                          <div class="text-xs text-gray-400">None selected</div>
+                        <% } %>
+                      </div>
+
+                      <!-- Right: Select + Add (fixed, no wrap) -->
+                      <form method="post"
+                            action="/cases/<%= c.id %>/phase/<%= p %>/tasks/<%= t.id %>/checks/add"
+                            class="flex items-center gap-2" style="flex:0 0 auto;">
+                        <select name="checkType"
+                                class="border rounded px-2 py-1"
+                                style="min-width:220px;"
+                                aria-label="Add check type"
+                                required>
+                          <option value="">Add a check type...</option>
+                          <option>Insurer Check</option>
+                          <option>MedPay</option>
+                          <option>UM/UIM</option>
+                          <option>Multiple Defendants</option>
+                          <option>Partial Payment</option>
+                          <option>Interest</option>
+                          <option>Client Contribution</option>
+                          <option>Other</option>
+                        </select>
+                        <button type="submit"
+                                class="border rounded px-3 py-1"
+                                style="white-space:nowrap;">Add</button>
+                      </form>
+                    </div>
+                  </div>
+                <% } %>
+
+                <% if (p === 2) {
+                     const _t = String(t.title||'').trim();
+                     const _isTarget = /^(Chiro|MRI|Diagnostic Testing|Pain management|Orthopedic|Psychologist)\b/i.test(_t) && /\bLOP$/i.test(_t);
+                     if (_isTarget) { 
+                       const cat = categoryFor(_t);
+                       const filtered = providerList.filter(pv => (pv.category||'') === cat);
+                       const hasProvider = !/\(name of provider\)/i.test(_t) && /(Chiro|MRI|Diagnostic Testing|Pain management|Orthopedic|Psychologist)\s+.+\s+LOP$/i.test(_t);
+                       const currentProvider = hasProvider ? _t.replace(/^(Chiro|MRI|Diagnostic Testing|Pain management|Orthopedic|Psychologist)\s+/i,'').replace(/\s+LOP$/i,'').trim() : '';
+                %>
+                  <div class="inline ml-2">
+                    <label class="sr-only" for="prov-task-<%=t.id%>">Select provider</label>
+                    <select id="prov-task-<%=t.id%>" class="border rounded px-2 py-1 text-xs"
+                            data-kind="task" data-cat="<%= cat %>"
+                            data-case-id="<%= c.id %>" data-phase="2" data-task-id="<%= t.id %>">
+                      <option value=""><%= currentProvider ? 'Change provider...' : 'Select provider...' %></option>
+                      <% filtered.forEach(pv => { %>
+                        <option value="<%= pv.name %>" data-pid="<%= pv.id %>"
+                                <%= (currentProvider && pv.name.toLowerCase()===currentProvider.toLowerCase())?'selected':'' %>>
+                          <%= pv.name %>
+                        </option>
+                      <% }) %>
+                      <option value="__add_new__">Add New Provider...</option>
+                    </select>
+                    <button type="button" class="btn-icon js-prov-del" title="Delete provider"
+                            data-cat="<%= cat %>">?</button>
+                  </div>
+                <% } } %>
+              </div>
+
+              <form class="js-del" method="post"
+                    action="/cases/<%= c.id %>/phase/<%=p%>/tasks/<%=t.id%>/delete"
+                    data-undo="/cases/<%= c.id %>/phase/<%=p%>/tasks/<%=t.id%>/undo-delete">
+                <button class="text-red-600 underline text-xs">Delete</button>
+              </form>
+            </li>
+
+            <% if (Array.isArray(t.children) && t.children.length){ %>
+              <ul class="subs">
+                <% t.children.forEach(st=>{ if (st.deleted_at) return; const stip = `${st.title}: ${st.done?'Complete':'Not Complete'}`; %>
+                  <li class="row" data-subtask data-taskid="<%=t.id%>" data-subid="<%=st.id%>" data-phase="<%=p%>">
+                    <input type="checkbox" class="js-sub-toggle mt-0.5"
+                           data-url="/cases/<%= c.id %>/phase/<%=p%>/tasks/<%=t.id%>/subtasks/<%=st.id%>/toggle"
+                           aria-label="Toggle subtask" <%= st.done?'checked':'' %>>
+                    <img class="js-sub-icon"
+                         src="<%= st.done ? '/assets/icons/chlf-status-tree-green.svg' : '/assets/icons/chlf-status-tree-red.svg' %>"
+                         alt="<%= stip %>" title="<%= stip %>" style="width:16px;height:16px">
+
+                    <div class="title text-sm">
+                      <%= st.title %>
+                      <% if (p === 2) { 
+                           const _s = String(st.title||'').trim();
+                           const _isTargetSub = /^(Chiro|MRI|Diagnostic Testing|Pain management|Orthopedic|Psychologist)\b/i.test(_s) && /\bLOP$/i.test(_s);
+                           if (_isTargetSub) {
+                             const cat = categoryFor(_s);
+                             const filtered = providerList.filter(pv => (pv.category||'') === cat);
+                             const hasProv = !/\(name of provider\)/i.test(_s) && /(Chiro|MRI|Diagnostic Testing|Pain management|Orthopedic|Psychologist)\s+.+\s+LOP$/i.test(_s);
+                             const currentProv = hasProv ? _s.replace(/^(Chiro|MRI|Diagnostic Testing|Pain management|Orthopedic|Psychologist)\s+/i,'').replace(/\s+LOP$/i,'').trim() : '';
+                      %>
+                        <div class="inline ml-2">
+                          <label class="sr-only" for="prov-sub-<%=t.id%>-<%=st.id%>">Select provider</label>
+                          <select id="prov-sub-<%=t.id%>-<%=st.id%>" class="border rounded px-2 py-1 text-xs"
+                                  data-kind="subtask" data-cat="<%= cat %>"
+                                  data-case-id="<%= c.id %>" data-phase="2" data-task-id="<%= t.id %>" data-sub-id="<%= st.id %>">
+                            <option value=""><%= currentProv ? 'Change provider...' : 'Select provider...' %></option>
+                            <% filtered.forEach(pv => { %>
+                              <option value="<%= pv.name %>" data-pid="<%= pv.id %>"
+                                      <%= (currentProv && pv.name.toLowerCase()===currentProv.toLowerCase())?'selected':'' %>>
+                                <%= pv.name %>
+                              </option>
+                            <% }) %>
+                            <option value="__add_new__">Add New Provider...</option>
+                          </select>
+                          <button type="button" class="btn-icon js-prov-del" title="Delete provider"
+                                  data-cat="<%= cat %>">?</button>
+                        </div>
+                      <% } } %>
+                    </div>
+
+                    <form class="js-del" method="post"
+                          action="/cases/<%= c.id %>/phase/<%=p%>/tasks/<%=t.id%>/subtasks/<%=st.id%>/delete"
+                          data-undo="/cases/<%= c.id %>/phase/<%=p%>/tasks/<%=t.id%>/subtasks/<%=st.id%>/undo-delete">
+                      <button class="text-red-600 underline text-xs">Delete</button>
+                    </form>
+                  </li>
+                <% }) %>
+              </ul>
+            <% } %>
+          <% }) %>
+          <% if (!(arr||[]).length){ %>
+            <li class="p-4 text-gray-600">No tasks yet.</li>
+          <% } %>
+        </ul>
+
+        <div class="px-3 py-3">
+          <form class="inline" action="/cases/<%= c.id %>/phase/<%=p%>/tasks" method="post">
+            <label class="sr-only" for="new-task-<%=p%>">New task title</label>
+            <input id="new-task-<%=p%>" class="border rounded px-2 py-1 text-sm" name="title" placeholder="Add task...">
+            <button class="ml-2 px-3 py-1 border rounded text-sm">Add Task</button>
+          </form>
+        </div>
+      </div>
+    </section>
+  <% } %>
+</div>
+
+<!-- Provider Modal -->
+<dialog id="providerModal" class="rounded-xl p-0 w-full max-w-md">
+  <form method="dialog" class="p-4 space-y-3" onsubmit="return false">
+    <h2 class="text-lg font-semibold">Add New Provider</h2>
+    <div>
+      <label for="providerName" class="block text-sm text-gray-700">Provider Name</label>
+      <input id="providerName" class="border rounded px-3 py-2 w-full" autocomplete="off" required>
+      <input type="hidden" id="providerCategory">
+      <p id="providerError" class="text-sm text-red-600 mt-1 hidden"></p>
+    </div>
+    <div class="flex justify-end gap-2">
+      <button type="button" class="px-4 py-2 border rounded" id="providerCancel">Cancel</button>
+      <button type="button" class="px-4 py-2 rounded text-white brand-bg" id="providerSave">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+(function(){
+  const titleRx = /^(Chiro|MRI|Diagnostic Testing|Pain management|Orthopedic|Psychologist)\b/i;
+  const lopEnd = /\bLOP$/i;
+
+  function hasProvider(title){
+    title=String(title||'').trim();
+    return !/\(name of provider\)/i.test(title) && titleRx.test(title) && lopEnd.test(title) &&
+           /(Chiro|MRI|Diagnostic Testing|Pain management|Orthopedic|Psychologist)\s+.+\s+LOP$/i.test(title);
+  }
+  function renderWithProvider(title, provider){
+    title=String(title||'').trim();
+    title = title.replace(/\s*\(name of provider\)\s*/i,' ');
+    return title.replace(/^(Chiro|MRI|Diagnostic Testing|Pain management|Orthopedic|Psychologist)\b.*\bLOP$/i,
+      (_,pre)=>`${pre} ${provider} LOP`);
+  }
+
+  /* ===== Expand/Collapse HOT-FIX: one phase open; toggle to close ===== */
+  (function () {
+    const maxP = <%= Number(maxP) %>;
+
+    function panel(p){ return document.getElementById(`phase-panel-${p}`); }
+    function headerBtn(p){ return document.querySelector(`[data-toggle][data-phase="${p}"]`); }
+    function ringBtn(p){ return document.querySelector(`[data-ring][data-phase="${p}"]`); }
+    function isOpen(p){ return panel(p)?.dataset.open === 'true'; }
+
+    function setOpen(p, open){
+      const el = panel(p); const btn = headerBtn(p); const ring = ringBtn(p);
+      if (!el) return;
+      if (open){
+        el.style.display = 'block';
+        el.dataset.open = 'true';
+        el.removeAttribute('hidden');
+        if (btn){ btn.setAttribute('aria-expanded','true'); btn.textContent='Collapse'; btn.type='button'; }
+        if (ring){ ring.setAttribute('aria-selected','true'); }
+        try{ localStorage.setItem('case.openPhase', String(p)); }catch{}
+      } else {
+        el.style.display = 'none';
+        el.dataset.open = 'false';
+        el.setAttribute('hidden','');
+        if (btn){ btn.setAttribute('aria-expanded','false'); btn.textContent='Expand'; btn.type='button'; }
+        if (ring){ ring.setAttribute('aria-selected','false'); }
+      }
+    }
+
+    function openOnly(p){
+      for (let i=1;i<=maxP;i++){ setOpen(i, i===p); }
+      document.getElementById(`phase-${p}`)?.scrollIntoView({ behavior:'instant', block:'start' });
+    }
+
+    // init
+    for (let i=1;i<=maxP;i++){ setOpen(i, false); }
+    let initial = 1;
+    try {
+      const s = Number(localStorage.getItem('case.openPhase') || '1');
+      if (s >= 1 && s <= maxP) initial = s;
+    } catch {}
+    openOnly(initial);
+
+    // header toggles
+    document.addEventListener('click', (e)=>{
+      const btn = e.target.closest('[data-toggle][data-phase]');
+      if (!btn) return;
+      e.preventDefault(); e.stopPropagation();
+      const p = Number(btn.dataset.phase);
+      if (!p || !panel(p)) return;
+      if (isOpen(p)) setOpen(p, false); else openOnly(p);
+    }, { capture:true });
+
+    // ring buttons open phase
+    document.querySelectorAll('[data-ring]').forEach((btn,i,arr)=>{
+      btn.addEventListener('click', (e)=>{ e.preventDefault(); openOnly(Number(btn.dataset.phase)); }, { passive:false });
+      btn.addEventListener('keydown', (e)=>{
+        if (e.key==='Enter' || e.key===' ') { e.preventDefault(); openOnly(Number(btn.dataset.phase)); }
+      });
+    });
+  })();
+
+  /* ===== Provider gating on completion ===== */
+  document.addEventListener('change', async (e)=>{
+    const cb = e.target.closest('.js-task-toggle, .js-sub-toggle'); if (!cb) return;
+    const row = cb.closest('[data-task],[data-subtask]'); if (!row) return;
+    const p   = Number(row.dataset.phase||'0');
+    const title = (row.querySelector('.title')?.childNodes?.[0]?.nodeValue||'').trim();
+    const isTarget = p===2 && titleRx.test(title) && lopEnd.test(title);
+    if (isTarget && !hasProvider(title) && cb.checked) { cb.checked=false; alert('Please select a provider before marking complete.'); }
+  });
+
+  /* ===== Provider add/apply/delete ===== */
+  const dlg=document.getElementById('providerModal');
+  const inp=document.getElementById('providerName');
+  const catInput=document.getElementById('providerCategory');
+  const err=document.getElementById('providerError');
+  const btnCancel=document.getElementById('providerCancel');
+  const btnSave=document.getElementById('providerSave');
+  let pendingSelect=null;
+
+  document.addEventListener('change', async (e)=>{
+    const sel = e.target.closest('select[data-task-id][data-phase="2"]'); if (!sel) return;
+    const val = sel.value;
+    if (val === '__add_new__') {
+      pendingSelect = sel; err.classList.add('hidden'); err.textContent=''; inp.value='';
+      catInput.value = sel.getAttribute('data-cat') || '';
+      dlg?.showModal?.(); sel.value=''; setTimeout(()=>inp.focus(),0); return;
+    }
+    if (!val) return;
+    await applyProvider(sel, val);
+  });
+
+  async function applyProvider(sel, providerName){
+    const kind = sel.getAttribute('data-kind');
+    const caseId=sel.getAttribute('data-case-id');
+    const phase=sel.getAttribute('data-phase');
+    const taskId=sel.getAttribute('data-task-id');
+    const subId=sel.getAttribute('data-sub-id') || null;
+
+    const titleDiv=sel.closest('.title');
+    const rawTitle=(titleDiv?.childNodes?.[0]?.nodeValue||'').trim();
+    const updated=renderWithProvider(rawTitle, providerName);
+    if (!updated || updated === rawTitle) return;
+
+    const url = (kind === 'subtask' && subId)
+      ? `/cases/${caseId}/phase/${phase}/tasks/${taskId}/subtasks/${subId}/edit`
+      : `/cases/${caseId}/phase/${phase}/tasks/${taskId}/edit`;
+
+    const r = await fetch(url, {
+      method:'POST',
+      headers:{ 'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8' },
+      body: new URLSearchParams({ title: updated })
+    });
+    if (!r.ok) { sel.value=''; return; }
+    titleDiv.childNodes[0].nodeValue = updated;
+  }
+
+  btnCancel?.addEventListener('click', ()=>{ dlg?.close?.(); pendingSelect=null; });
+
+  btnSave?.addEventListener('click', async ()=>{
+    const name=(inp.value||'').trim();
+    const category=(catInput.value||'').trim();
+    if (!name){ err.textContent='Please enter a provider name.'; err.classList.remove('hidden'); inp.focus(); return; }
+    try{
+      const r = await fetch('/cases/providers', {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json' },
+        body: JSON.stringify({ name, category })
+      });
+      const json = await r.json();
+      if (!r.ok || !json.ok) throw new Error(json.error || 'Could not add provider.');
+
+      document.querySelectorAll(`select[data-task-id][data-phase="2"][data-cat="${category}"]`).forEach(sel=>{
+        const addOpt = Array.from(sel.options).find(o => o.value === '__add_new__');
+        const opt=document.createElement('option');
+        opt.value = json.provider.name;
+        opt.textContent = json.provider.name;
+        opt.setAttribute('data-pid', json.provider.id);
+        sel.add(opt, addOpt || null);
+      });
+      if (pendingSelect) {
+        pendingSelect.value = json.provider.name;
+        await applyProvider(pendingSelect, json.provider.name);
+      }
+      dlg?.close?.(); pendingSelect=null;
+    }catch(e){
+      err.textContent = e.message || 'Could not add provider.';
+      err.classList.remove('hidden');
+    }
+  });
+
+  document.addEventListener('click', async (e)=>{
+    const btn = e.target.closest('.js-prov-del'); if (!btn) return;
+    const wrap = btn.closest('.inline');
+    const sel = wrap?.querySelector('select[data-task-id][data-phase="2"]'); if (!sel) return;
+    const opt = sel.options[sel.selectedIndex];
+    const pid = opt?.getAttribute('data-pid');
+    const category = sel.getAttribute('data-cat') || '';
+    if (!pid){ alert('Select a provider to delete.'); return; }
+    if (!confirm(`Delete provider "${opt.textContent}" from the "${category}" list? This won't change existing titles.`)) return;
+    try{
+      const r = await fetch(`/cases/providers/${pid}/delete`, { method:'POST', headers: { 'X-Requested-With':'fetch' } });
+      const json = await r.json().catch(()=>({ ok: r.ok }));
+      if (!r.ok || json.ok === false) throw new Error(json.error || 'Delete failed');
+      document.querySelectorAll(`select[data-task-id][data-phase="2"] option[data-pid="${pid}"]`).forEach(o=>{
+        const sel = o.parentElement;
+        const isCurrent = o.selected;
+        o.remove();
+        if (isCurrent && sel) sel.value = '';
+      });
+      alert('Provider deleted.');
+    }catch(err){
+      alert(err.message || 'Could not delete provider.');
+    }
+  });
+
+  /* ===== LIVE ring + open count updates ===== */
+  function updateIcon(imgEl, checked){
+    if (!imgEl) return;
+    const green = '/assets/icons/chlf-status-tree-green.svg';
+    const red   = '/assets/icons/chlf-status-tree-red.svg';
+    imgEl.src   = checked ? green : red;
+    imgEl.alt   = checked ? 'Complete' : 'Not Complete';
+    imgEl.title = imgEl.alt;
+  }
+
+  function computePhaseStats(phase){
+    const panel = document.getElementById(`phase-panel-${phase}`);
+    if (!panel) return { total: 0, done: 0, open: 0 };
+    let total = 0, done = 0;
+    panel.querySelectorAll('li.row[data-task]').forEach(li=>{
+      total += 1;
+      if (li.querySelector('.js-task-toggle')?.checked) done += 1;
+    });
+    panel.querySelectorAll('li.row[data-subtask]').forEach(li=>{
+      total += 1;
+      if (li.querySelector('.js-sub-toggle')?.checked) done += 1;
+    });
+    return { total, done, open: Math.max(0, total - done) };
+  }
+
+  function recalcOpenForPhase(phase){
+    const { total, done, open } = computePhaseStats(phase);
+    const lab = document.querySelector(`.js-open-label[data-phase="${phase}"]`);
+    if (lab) lab.textContent = `Open Tasks: ${open}`;
+    updateRingForPhase(phase, total, done, open);
+  }
+
+  function updateRingForPhase(phase, total, done, open){
+    const ring = document.querySelector(`.ring-item[data-phase="${phase}"] .ring-btn`);
+    if (!ring) return;
+    const svg = ring.querySelector('svg'); if (!svg) return;
+    const circles = svg.querySelectorAll('circle');
+    const openCircle = circles[1], doneCircle = circles[2];
+    if (!openCircle || !doneCircle) return;
+
+    const r = Number(openCircle.getAttribute('r') || doneCircle.getAttribute('r') || 56);
+    const c = 2 * Math.PI * r;
+
+    const donePct = total ? (done / total) : 0;
+    const openPct = total ? (open / total) : 0;
+    const doneLen = donePct * c;
+    const openLen = openPct * c;
+
+    openCircle.setAttribute('stroke-dasharray', `${openLen} ${c}`);
+    doneCircle.setAttribute('stroke-dasharray', `${doneLen} ${c}`);
+
+    const centerText = ring.querySelector('.text-lg.font-bold');
+    if (centerText) centerText.textContent = `Open: ${open}`;
+  }
+
+  async function postToggle(url){
+    const r = await fetch(url, { method:'POST', headers:{ 'X-Requested-With':'fetch' } });
+    if (!r.ok) throw new Error('Toggle failed');
+    return true;
+  }
+
+  document.addEventListener('change', async (e)=>{
+    const cbTask = e.target.closest('.js-task-toggle');
+    const cbSub  = e.target.closest('.js-sub-toggle');
+    if (!cbTask && !cbSub) return;
+
+    const isTask = !!cbTask;
+    const cb = cbTask || cbSub;
+    const row = cb.closest(isTask ? 'li.row[data-task]' : 'li.row[data-subtask]');
+    const phase = Number(row?.getAttribute('data-phase') || '0');
+    const url = cb.getAttribute('data-url'); if (!url) return;
+    const icon = row.querySelector(isTask ? '.js-task-icon' : '.js-sub-icon');
+    const prev = !cb.checked; // revert if POST fails
+
+    try{
+      await postToggle(url);
+      updateIcon(icon, cb.checked);
+
+      if (!isTask){
+        const tRow = row.closest('li.row[data-task]');
+        if (tRow){
+          const subs = tRow.nextElementSibling && tRow.nextElementSibling.matches('ul.subs') ? tRow.nextElementSibling : null;
+          if (subs){
+            const boxes = subs.querySelectorAll('.js-sub-toggle');
+            const allDone = boxes.length>0 && Array.from(boxes).every(x=>x.checked);
+            const parentCb = tRow.querySelector('.js-task-toggle');
+            if (parentCb && parentCb.checked !== allDone){
+              parentCb.checked = allDone;
+              updateIcon(tRow.querySelector('.js-task-icon'), allDone);
+            }
+          }
+        }
+      }
+
+      recalcOpenForPhase(phase);
+    }catch(err){
+      cb.checked = prev;
+      alert(err.message || 'Could not update. Please retry.');
+    }
+  });
+
+  // ====== Delete with Undo toast (no reload) ======
+  function ensureUndoHost(){
+    let host=document.getElementById('undo-toast-host');
+    if (host) return host;
+    host=document.createElement('div');
+    host.id='undo-toast-host';
+    host.style.position='fixed'; host.style.left='50%'; host.style.bottom='16px';
+    host.style.transform='translateX(-50%)'; host.style.zIndex='9999';
+    document.body.appendChild(host);
+    return host;
+  }
+  function showUndoToast(message, undoUrl, phase){
+    const host=ensureUndoHost(); host.innerHTML='';
+    const box=document.createElement('div');
+    box.style.background='#111827'; box.style.color='white'; box.style.padding='10px 12px';
+    box.style.borderRadius='8px'; box.style.boxShadow='0 4px 16px rgba(0,0,0,.2)'; box.style.display='flex'; box.style.gap='12px'; box.style.alignItems='center';
+    const msg=document.createElement('span'); msg.textContent=message;
+    const undoBtn=document.createElement('button'); undoBtn.textContent='Undo';
+    undoBtn.style.background='white'; undoBtn.style.color='#111827'; undoBtn.style.borderRadius='6px'; undoBtn.style.padding='6px 10px'; undoBtn.style.border='none'; undoBtn.style.cursor='pointer';
+    undoBtn.addEventListener('click', async ()=>{
+      try{
+        await fetch(undoUrl, { method:'POST', headers:{ 'X-Requested-With':'fetch','Accept':'application/json' } });
+      }catch(_){} 
+      location.reload(); // keep undo simple
+    });
+    box.appendChild(msg); box.appendChild(undoBtn); host.appendChild(box); setTimeout(()=>{ if(host.contains(box)) host.removeChild(box); }, 8000);
+  }
+  document.addEventListener('submit', async (e)=>{
+    const form = e.target.closest('form.js-del'); if (!form) return;
+    e.preventDefault();
+    const undoUrl=form.getAttribute('data-undo');
+    const row=form.closest('[data-task],[data-subtask]');
+    const phase = Number(row?.getAttribute('data-phase') || '0');
+    try{
+      const r=await fetch(form.action, { method:'POST', headers:{ 'X-Requested-With':'fetch' } });
+      if (!r.ok) throw new Error('delete failed');
+      if (row) row.remove();
+      recalcOpenForPhase(phase);
+      showUndoToast('Item deleted.', undoUrl, phase);
+    }catch(err){
+      alert('Could not delete. Please retry.');
+    }
+  });
+
+  // Initial ring sync on load
+  (function initRings(){
+    document.querySelectorAll('.ring-item[data-phase]').forEach(it => {
+      const phase = Number(it.getAttribute('data-phase')||'0');
+      recalcOpenForPhase(phase);
+    });
+  })();
+})();
+</script>
+
+<%- include('partials/foot') %>
+
+<%
+// Resolve case variable safely
+const __case = (typeof caseObj !== 'undefined' && caseObj)
+  || (typeof c !== 'undefined' && c)
+  || (typeof caseData !== 'undefined' && caseData)
+  || (typeof data !== 'undefined' && data)
+  || {};
+const __P2 = (__case && __case.phaseTasks) ? __case.phaseTasks : {};
+const __tasks2 = Array.isArray(__P2[2]) ? __P2[2] : [];
+const __currentTitles = __tasks2.map(t => (t && t.title) ? String(t.title) : '').filter(Boolean);
+const __presets2 = (typeof presetsPhase2 !== 'undefined' && Array.isArray(presetsPhase2)) ? presetsPhase2 : [];
+const __configured = !!(__case.flags && __case.flags.phase2Configured);
+const __existingSubtasksByTitle = (() => {
+  const m = {};
+  (__tasks2 || []).forEach(t => {
+    const title = (t && t.title) ? String(t.title) : '';
+    if (!title) return;
+    const k = 'title:' + title.toLowerCase().trim().replace(/\s+/g,' ');
+    const subs = Array.isArray(t && t.subtasks) ? t.subtasks : [];
+    const names = subs.map(st => (st && st.title) ? String(st.title) : String(st)).filter(Boolean);
+    m[k] = names;
+  });
+  return m;
+})();
+%>
+<div class="ml-auto">
+  <button type="button" class="px-3 py-1 rounded border" onclick="P2Chooser.show()">Customize Phase 2</button>
+</div>
+<%- include('partials/phase2-chooser-modal', { 
+  caseObj: __case, 
+  presets: __presets2, 
+  currentTitles: __currentTitles,
+  configured: __configured,
+  existingSubtasksByTitle: __existingSubtasksByTitle
+}) %>
+

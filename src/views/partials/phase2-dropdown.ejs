@@ -1,0 +1,132 @@
+<%
+/* Accept server presets or fallback to an empty list */
+const _presetsPhase2 = Array.isArray(typeof presetsPhase2 !== 'undefined' ? presetsPhase2 : [])
+  ? (presetsPhase2 || [])
+  : [];
+
+/* Normalize to { title, subtasks?: string[] } */
+const LIST = (_presetsPhase2 || [])
+  .map(x => {
+    if (typeof x === 'string') return { title: x, subtasks: [] };
+    const subtasks = Array.isArray(x.subtasks)
+      ? x.subtasks.map(s => (typeof s === 'string' ? s : (s && s.title) ? String(s.title) : '')).filter(Boolean)
+      : [];
+    return { title: x.title, subtasks };
+  })
+  .filter(x => x && typeof x.title === 'string' && x.title.trim().length > 0);
+%>
+
+<div class="border rounded p-3 bg-gray-50">
+  <label for="phase2_titles" class="block text-sm text-gray-700 mb-2">
+    Phase 2 — Manage Medical & Investigation
+  </label>
+
+  <!-- Multi-select for TASKS -->
+  <select id="phase2_titles" name="phase2_titles[]" multiple size="8" class="border rounded px-3 py-2 w-full">
+    <% LIST.forEach(function(opt){ %>
+      <option value="<%= opt.title %>"><%= opt.title %><%= opt.subtasks.length ? ' ('+opt.subtasks.length+')' : '' %></option>
+    <% }) %>
+  </select>
+
+  <!-- Subtask picker panel (dynamic checkboxes) -->
+  <div id="phase2_picker" class="mt-3 border rounded p-3 bg-white">
+    <div class="text-sm font-medium mb-2">Select subtasks to keep (per selected task)</div>
+    <div class="text-xs text-gray-500" id="phase2_picker_empty">Select one or more tasks above to choose subtasks.</div>
+    <div id="phase2_picker_groups" class="space-y-4"></div>
+  </div>
+
+  <p class="text-xs text-gray-500 mt-2">
+    Subtasks checked here will be saved with the case. You can add/remove later in the case detail.
+  </p>
+</div>
+
+<script>
+(function(){
+  var TASKS = <%- JSON.stringify(LIST) %>;
+  var selectEl = document.getElementById('phase2_titles');
+  var groupsEl = document.getElementById('phase2_picker_groups');
+  var emptyEl = document.getElementById('phase2_picker_empty');
+
+  function makeGroup(title, items){
+    var wrap = document.createElement('div');
+    wrap.className = 'border rounded p-2';
+
+    var header = document.createElement('div');
+    header.className = 'flex items-center justify-between mb-2';
+
+    var h = document.createElement('div');
+    h.className = 'text-sm font-semibold';
+    h.textContent = title + (items.length ? ' (' + items.length + ')' : '');
+
+    var controls = document.createElement('div');
+    controls.className = 'text-xs flex gap-2';
+    var allBtn = document.createElement('button');
+    allBtn.type = 'button';
+    allBtn.textContent = 'Select all';
+    var noneBtn = document.createElement('button');
+    noneBtn.type = 'button';
+    noneBtn.textContent = 'Select none';
+
+    controls.appendChild(allBtn);
+    controls.appendChild(noneBtn);
+    header.appendChild(h);
+    header.appendChild(controls);
+    wrap.appendChild(header);
+
+    if (!items.length){
+      var p = document.createElement('div');
+      p.className = 'text-xs text-gray-500';
+      p.textContent = 'No predefined subtasks for this task.';
+      wrap.appendChild(p);
+    } else {
+      var ul = document.createElement('ul');
+      ul.className = 'space-y-1';
+      items.forEach(function(s, idx){
+        var li = document.createElement('li');
+        var label = document.createElement('label');
+        label.className = 'inline-flex items-center gap-2';
+        var cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.name = 'subtasks[' + title + '][]'; // submitted shape
+        cb.value = s;
+        cb.checked = true; // default keep all
+
+        var span = document.createElement('span');
+        span.textContent = s;
+
+        label.appendChild(cb);
+        label.appendChild(span);
+        li.appendChild(label);
+        ul.appendChild(li);
+      });
+      wrap.appendChild(ul);
+
+      allBtn.addEventListener('click', function(){
+        ul.querySelectorAll('input[type="checkbox"]').forEach(function(c){ c.checked = true; });
+      });
+      noneBtn.addEventListener('click', function(){
+        ul.querySelectorAll('input[type="checkbox"]').forEach(function(c){ c.checked = false; });
+      });
+    }
+
+    return wrap;
+  }
+
+  function renderGroups(){
+    var selected = Array.from(selectEl.selectedOptions).map(function(o){ return o.value; });
+    groupsEl.innerHTML = '';
+    if (!selected.length){ emptyEl.style.display = ''; return; }
+    emptyEl.style.display = 'none';
+
+    selected.forEach(function(title){
+      var task = TASKS.find(function(t){ return t.title === title; });
+      var items = (task && Array.isArray(task.subtasks)) ? task.subtasks : [];
+      groupsEl.appendChild(makeGroup(title, items));
+    });
+  }
+
+  selectEl.addEventListener('change', renderGroups);
+  selectEl.addEventListener('click', renderGroups);
+  renderGroups();
+})();
+</script>

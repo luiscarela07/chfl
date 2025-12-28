@@ -1,0 +1,41 @@
+﻿%><%- include('partials/head') %>
+<%- include('partials/nav') %>
+
+<h1 class="text-2xl font-semibold mb-4" aria-label="Dashboard">Dashboard</h1>
+
+<%
+  const items = Array.isArray(rings) ? rings : []
+%>
+
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
+  <% items.forEach((r, idx) => {
+       const done = Math.max(0, (r.total || 0) - (r.open || 0))
+       const total = Math.max(1, r.total || 1) // avoid /0
+       const hover = r.phase===0
+         ? `Total Cases: ${r.open}`
+         : `${r.label}: ${r.open} open of ${total} total`
+       const aria = r.phase===0
+         ? `Ring ${idx+1} of ${items.length}: Total Cases ${r.open}`
+         : `Ring ${idx+1} of ${items.length}: ${r.label}, ${r.open} open of ${total} total`
+  %>
+    <div class="bg-white rounded-lg shadow border" role="group" aria-label="<%= aria %>">
+      <!-- High-contrast label bar -->
+      <div class="px-3 py-2 bg-gray-900 text-white font-semibold text-[14px] leading-tight rounded-t-lg">
+        <%= r.phase===0 ? 'Total Cases' : r.label %>
+      </div>
+
+      <% if (r.href) { %><a href="<%= r.href %>" title="<%= hover %>" class="block p-4"><% } else { %><div class="p-4" title="<%= hover %>"><% } %>
+        <%- include('partials/ring-dual', { label: r.phase===0 ? 'Total' : `Phase ${r.phase}`, total: total, done: done, hover }) %>
+        <div class="mt-2 text-center text-sm">
+          <% if (r.phase===0) { %>
+            <span class="font-semibold"><%= r.open %></span>
+          <% } else { %>
+            <span class="font-semibold"><%= r.open %></span> open
+          <% } %>
+        </div>
+      <% if (r.href) { %></a><% } else { %></div><% } %>
+    </div>
+  <% }) %>
+</div>
+
+<%- include('partials/foot') %>

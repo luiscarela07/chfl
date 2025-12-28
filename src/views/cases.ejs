@@ -1,0 +1,206 @@
+﻿<%- include('partials/head') %>
+<%- include('partials/nav') %>
+
+<%
+// Defensive defaults
+const _client = (typeof client !== 'undefined' && client) ? client : ''
+const _phaseFilter = (typeof phaseFilter !== 'undefined' && phaseFilter) ? phaseFilter : 'any'
+const _dueFilter = (typeof dueFilter !== 'undefined' && dueFilter) ? dueFilter : 'any'
+const _start = (typeof start !== 'undefined' && start) ? start : ''
+const _end = (typeof end !== 'undefined' && end) ? end : ''
+const _activeFilters = (typeof activeFilters !== 'undefined' && activeFilters) ? activeFilters : []
+const _sort = (typeof sort !== 'undefined' && sort) ? sort : 'phases'
+const _dir  = (typeof dir  !== 'undefined' && dir ) ? dir  : 'desc'
+const _lit  = (typeof lit  !== 'undefined' && lit ) ? lit  : 'any'
+%>
+
+<% if (phaseOpen && [1,2,3,4,5].includes(phaseOpen)) { %>
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+    <h1 class="text-xl sm:text-2xl font-semibold">
+      Showing Phase <%= phaseOpen %> Open Tasks (<%= filterCount %> case<%= filterCount===1?'':'s' %>)
+    </h1>
+    <div class="flex items-center gap-2 text-sm">
+      <span>Sort:</span>
+      <% const nextDir = (_dir === 'desc' ? 'asc' : 'desc'); %>
+      <a class="underline" href="/cases?<%= `phaseOpen=${phaseOpen}&sort=task&dir=${_sort==='task'? nextDir : 'asc'}` %>">Task Title <%= _sort==='task' ? (_dir==='asc'?'▲':'▼') : '' %></a>
+      <span>|</span>
+      <a class="underline" href="/cases?<%= `phaseOpen=${phaseOpen}&sort=client&dir=${_sort==='client'? nextDir : 'asc'}` %>">Client <%= _sort==='client' ? (_dir==='asc'?'▲':'▼') : '' %></a>
+      <a class="ml-3 px-3 py-1 rounded border" href="/cases">Clear Filter</a>
+    </div>
+  </div>
+
+  <div class="bg-white rounded-lg shadow border overflow-hidden">
+    <table class="w-full text-sm">
+      <thead class="bg-gray-100">
+        <tr>
+          <th class="text-left p-2">Client</th>
+          <th class="text-left p-2">Open Tasks</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% rows.forEach(c => { %>
+          <tr class="border-t align-top">
+            <td class="p-2 w-48"><a href="/cases/<%= c.id %>" class="hover:underline font-medium"><%= c.clientName %></a></td>
+            <td class="p-2">
+              <% if (!c.openTasks.length) { %>
+                <span class="text-gray-500">No open tasks.</span>
+              <% } else { %>
+                <ul class="list-disc pl-5">
+                  <% c.openTasks.forEach(t => { %>
+                    <li><%= t %></li>
+                  <% }) %>
+                </ul>
+              <% } %>
+            </td>
+          </tr>
+        <% }) %>
+        <% if (!rows.length) { %>
+          <tr><td colspan="2" class="p-4 text-center text-gray-500">No cases with open tasks in Phase <%= phaseOpen %>.</td></tr>
+        <% } %>
+      </tbody>
+    </table>
+  </div>
+<% } else { %>
+
+  <div class="flex items-center justify-between mb-3">
+    <h1 class="text-2xl font-semibold">All Cases</h1>
+    <a href="/cases/new" class="brand-bg text-white px-3 py-2 rounded">New Case</a>
+  </div>
+
+  <form method="get" class="bg-white p-3 rounded border shadow mb-2 grid grid-cols-1 md:grid-cols-12 gap-3" id="filter-form">
+    <div class="md:col-span-3">
+      <label class="block text-sm text-gray-600 mb-1">Client Name</label>
+      <input class="border rounded px-3 py-2 w-full" name="client" placeholder="e.g., Smith" value="<%= _client %>">
+    </div>
+    <div class="md:col-span-3">
+      <label class="block text-sm text-gray-600 mb-1">Phase Status</label>
+      <select class="border rounded px-3 py-2 w-full" name="phaseFilter">
+        <option value="any" <%= _phaseFilter==='any'?'selected':'' %>>Any</option>
+        <% for (let p=1;p<=5;p++){ %>
+          <option value="p<%=p%>:complete" <%= _phaseFilter===`p${p}:complete`?'selected':'' %>>Phase <%=p%> • Complete</option>
+          <option value="p<%=p%>:not"      <%= _phaseFilter===`p${p}:not`?'selected':'' %>>Phase <%=p%> • Not Complete</option>
+        <% } %>
+      </select>
+    </div>
+    <div class="md:col-span-3">
+      <label class="block text-sm text-gray-600 mb-1">Litigation Status</label>
+      <select class="border rounded px-3 py-2 w-full" name="lit">
+        <option value="any" <%= _lit==='any'?'selected':'' %>>Any</option>
+        <option value="pre" <%= _lit==='pre'?'selected':'' %>>Pre Litigation</option>
+        <option value="litigation" <%= _lit==='litigation'?'selected':'' %>>Litigation</option>
+      </select>
+    </div>
+    <div class="md:col-span-3">
+      <label class="block text-sm text-gray-600 mb-1">Due Date</label>
+      <select class="border rounded px-3 py-2 w-full" name="dueFilter" id="dueFilter">
+        <option value="any"   <%= _dueFilter==='any'?'selected':'' %>>Any</option>
+        <option value="today" <%= _dueFilter==='today'?'selected':'' %>>Today</option>
+        <option value="week"  <%= _dueFilter==='week'?'selected':'' %>>This Week</option>
+        <option value="month" <%= _dueFilter==='month'?'selected':'' %>>This Month</option>
+        <option value="custom"<%= _dueFilter==='custom'?'selected':'' %>>Custom Range</option>
+      </select>
+    </div>
+    <div class="md:col-span-6" id="rangeStartWrap" style="<%= _dueFilter==='custom'?'':'display:none' %>">
+      <label class="block text-sm text-gray-600 mb-1">Start</label>
+      <input type="date" class="border rounded px-3 py-2 w-full" name="start" value="<%= _start %>">
+    </div>
+    <div class="md:col-span-6" id="rangeEndWrap" style="<%= _dueFilter==='custom'?'':'display:none' %>">
+      <label class="block text-sm text-gray-600 mb-1">End</label>
+      <input type="date" class="border rounded px-3 py-2 w-full" name="end" value="<%= _end %>">
+    </div>
+    <div class="md:col-span-12 flex flex-wrap gap-2">
+      <button class="brand-bg text-white px-4 py-2 rounded">Apply</button>
+      <a href="/cases" class="px-4 py-2 border rounded">Clear All</a>
+      <div class="ml-auto text-sm self-center">
+        <% const nextDir2 = (_dir === 'desc' ? 'asc' : 'desc'); %>
+        Sort:
+        <a class="underline" href="/cases?<%= `client=${encodeURIComponent(_client)}&phaseFilter=${encodeURIComponent(_phaseFilter)}&dueFilter=${encodeURIComponent(_dueFilter)}&start=${encodeURIComponent(_start)}&end=${encodeURIComponent(_end)}&lit=${encodeURIComponent(_lit)}&sort=phases&dir=${nextDir2}` %>">
+          # Complete <%= (_sort==='phases') ? (_dir==='desc'?'▼':'▲') : '' %>
+        </a>
+        <span> | </span>
+        <a class="underline" href="/cases?<%= `client=${encodeURIComponent(_client)}&phaseFilter=${encodeURIComponent(_phaseFilter)}&dueFilter=${encodeURIComponent(_dueFilter)}&start=${encodeURIComponent(_start)}&end=${encodeURIComponent(_end)}&lit=${encodeURIComponent(_lit)}&sort=client&dir=${nextDir2}` %>">
+          Client <%= (_sort==='client') ? (_dir==='desc'?'▼':'▲') : '' %>
+        </a>
+        <span> | </span>
+        <a class="underline" href="/cases?<%= `client=${encodeURIComponent(_client)}&phaseFilter=${encodeURIComponent(_phaseFilter)}&dueFilter=${encodeURIComponent(_dueFilter)}&start=${encodeURIComponent(_start)}&end=${encodeURIComponent(_end)}&lit=${encodeURIComponent(_lit)}&sort=due&dir=${nextDir2}` %>">
+          Due <%= (_sort==='due') ? (_dir==='desc'?'▼':'▲') : '' %>
+        </a>
+      </div>
+    </div>
+  </form>
+
+  <div class="hidden sm:block bg-white rounded-lg shadow border overflow-hidden">
+    <table class="w-full text-sm">
+      <thead class="bg-gray-100">
+        <tr>
+          <th class="text-left p-2">Client</th>
+          <th class="text-left p-2">Type</th>
+          <th class="text-left p-2">Incident</th>
+          <th class="text-left p-2">Phase Status</th>
+          <th class="text-left p-2">Litigation Status</th>
+          <th class="text-left p-2">Due</th>
+          <th class="p-2"></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% rows.forEach(c => {
+             const P = c.phases || {}
+             const lit = (c.litigationStatus || 'pre')
+             const maxP = (lit==='litigation') ? 5 : 3
+        %>
+          <tr class="border-t">
+            <td class="p-2"><a href="/cases/<%= c.id %>" class="hover:underline font-medium"><%= c.clientName %></a></td>
+            <td class="p-2"><%= c.typeOfCase || '—' %></td>
+            <td class="p-2"><%= c.dateOfIncident || '—' %></td>
+            <td class="p-2">
+              <div class="flex items-center gap-1" aria-label="Phase status icons">
+                <% for (let p=1;p<=maxP;p++){
+                     const ok = !!P[p]
+                     const src = ok ? '/assets/icons/chlf-status-tree-green.svg' : '/assets/icons/chlf-status-tree-red.svg'
+                     const tip = `Phase ${p}: ${ok?'Complete':'Not Complete'}`
+                %>
+                  <% const fill = ok ? '#16a34a' : '#ef4444'; %>
+<span class="inline-block align-middle rounded-full" title="<%= tip %>" aria-label="<%= tip %>" style="width:16px;height:16px;min-width:16px;min-height:16px;background-color:<%= fill %>;border:1px solid #d1d5db;"></span>
+<% } %>
+              </div>
+            </td>
+            <td class="p-2"><%= (c.litigationStatus==='litigation'?'Litigation':'Pre') %></td>
+            <td class="p-2"><%= c.dueDate || '—' %></td>
+            <td class="p-2"><a class="underline" href="/cases/<%= c.id %>/edit">Edit</a></td>
+          </tr>
+        <% }) %>
+        <% if (!rows.length) { %>
+          <tr><td colspan="7" class="p-4 text-center text-gray-500">No cases found.</td></tr>
+        <% } %>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="sm:hidden grid gap-2">
+    <% rows.forEach(c => { const lit = (c.litigationStatus || 'pre'); const maxP = lit==='litigation'?5:3; %>
+      <div class="bg-white rounded-lg shadow border p-3">
+        <div class="flex items-center justify-between">
+          <a href="/cases/<%= c.id %>" class="font-semibold"><%= c.clientName %></a>
+          <a class="underline text-sm" href="/cases/<%= c.id %>/edit">Edit</a>
+        </div>
+        <div class="text-xs text-gray-600 mt-1">
+          <div><strong>Type:</strong> <%= c.typeOfCase || '—' %></div>
+          <div><strong>Incident:</strong> <%= c.dateOfIncident || '—' %></div>
+          <div><strong>Litigation:</strong> <%= lit==='litigation'?'Litigation':'Pre' %></div>
+          <div><strong>Due:</strong> <%= c.dueDate || '—' %></div>
+        </div>
+        <div class="flex items-center gap-1 mt-2">
+          <% for (let p=1;p<=maxP;p++){ const ok = !!(c.phases||{})[p];
+               const src = ok ? '/assets/icons/chlf-status-tree-green.svg' : '/assets/icons/chlf-status-tree-red.svg';
+               const tip = `Phase ${p}: ${ok?'Complete':'Not Complete'}`; %>
+            <% const fill = ok ? '#16a34a' : '#ef4444'; %>
+<span class="inline-block align-middle rounded-full" title="<%= tip %>" aria-label="<%= tip %>" style="width:16px;height:16px;min-width:16px;min-height:16px;background-color:<%= fill %>;border:1px solid #d1d5db;"></span>
+<% } %>
+        </div>
+      </div>
+    <% }) %>
+  </div>
+
+<% } %>
+
+<%- include('partials/foot') %>

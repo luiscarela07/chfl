@@ -1,0 +1,155 @@
+<%
+  const byTitleKey = t => ('title:' + String(t||'').toLowerCase().trim().replace(/\s+/g,' '));
+  const optSet = new Set();
+  const options = [];
+  const addOpt = (title, group, subtasks) => {
+    const k = byTitleKey(title);
+    if (!title || optSet.has(k)) return;
+    optSet.add(k);
+    options.push({ title, group: group || '', subtasks: Array.isArray(subtasks) ? subtasks : undefined });
+  };
+
+  (Array.isArray(presets) ? presets : []).forEach(p => addOpt(p && p.title, p && p.group, Array.isArray(p && p.subtasks) ? p.subtasks : undefined));
+  if (!options.length) (Array.isArray(currentTitles) ? currentTitles : []).forEach(t => addOpt(t, '', undefined));
+
+  const existingKeys = new Set((Array.isArray(currentTitles) ? currentTitles : []).map(byTitleKey));
+  const groups = Array.from(new Set(options.map(o => o.group).filter(Boolean)));
+%>
+
+<style>
+  .p2-modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.35);display:none;align-items:center;justify-content:center;z-index:50}
+  .p2-modal{background:#fff;max-width:720px;width:96%;max-height:80vh;border:1px solid #e5e7eb;border-radius:.75rem;box-shadow:0 10px 25px rgba(0,0,0,.15);display:flex;flex-direction:column}
+  .p2-head{padding:12px 16px;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .p2-body{padding:12px 16px;overflow:auto}
+  .p2-foot{padding:12px 16px;border-top:1px solid #e5e7eb;display:flex;gap:8px;justify-content:space-between;flex-wrap:wrap}
+  .p2-chip{border:1px solid #e5e7eb;border-radius:9999px;padding:4px 10px;cursor:pointer;user-select:none}
+  .p2-chip.active{border-color:#111827}
+  .p2-list{margin-top:8px}
+  .p2-item{display:flex;align-items:center;gap:8px;padding:6px 4px;border-radius:6px}
+  .p2-item:hover{background:#f9fafb}
+  .p2-input{border:1px solid #e5e7eb;border-radius:8px;padding:8px 10px;width:100%}
+  .p2-btn{border:1px solid #e5e7eb;border-radius:8px;padding:8px 12px;cursor:pointer;background:#fff}
+  .p2-primary{background:var(--brand-color,#0f766e);color:#fff;border-color:var(--brand-color,#0f766e)}
+</style>
+
+<div id="p2ChooserBackdrop" class="p2-modal-backdrop" aria-hidden="true">
+  <div class="p2-modal" role="dialog" aria-modal="true" aria-labelledby="p2ChooserTitle">
+    <div class="p2-head">
+      <div>
+        <div id="p2ChooserTitle" class="text-base font-semibold">Customize Phase 2</div>
+        <div class="text-sm text-gray-600">Choose only the tasks that apply to this case.</div>
+      </div>
+      <button class="p2-btn" type="button" onclick="P2Chooser.close()">✕</button>
+    </div>
+
+    <div class="p2-body">
+      <div class="flex items-center gap-2">
+        <input id="p2Search" class="p2-input" placeholder="Search tasks…" oninput="P2Chooser.filter(this.value)" />
+        <button class="p2-btn" type="button" onclick="P2Chooser.selectAll()">Select all</button>
+        <button class="p2-btn" type="button" onclick="P2Chooser.selectNone()">Select none</button>
+      </div>
+
+      <% if (groups.length) { %>
+      <div class="flex flex-wrap gap-2 mt-2">
+        <span class="text-sm text-gray-600">Groups:</span>
+        <button class="p2-chip active" data-group="" type="button" onclick="P2Chooser.setGroup('')">All</button>
+        <% groups.forEach(g => { %>
+          <button class="p2-chip" data-group="<%= g %>" type="button" onclick="P2Chooser.setGroup('<%= g %>')"><%= g %></button>
+        <% }) %>
+      </div>
+      <% } %>
+
+      <form id="p2Form" class="p2-list mt-2" method="post" action="/cases/<%= caseObj.id %>/phase2/choose" onsubmit="return P2Chooser.submit(event)">
+        <% options.forEach((o,i) => { const checked = existingKeys.has(byTitleKey(o.title)); %>
+          <label class="p2-item" data-title="<%= o.title.toLowerCase() %>" data-group="<%= o.group %>">
+            <input type="checkbox" name="titles[]" value="<%= o.title %>" <%= checked ? 'checked' : '' %> />
+            <span><%= o.title %></span>
+            <% const sc = Array.isArray(o.subtasks)?o.subtasks.length:0; if (sc>0) { %>
+              <span class="text-xs text-gray-500">• <%= sc %> subtask<%= sc>1?'s':'' %></span>
+            <% } %>
+            <% if (o.group) { %><span class="text-xs text-gray-500 ml-auto"><%= o.group %></span><% } %>
+          </label>
+          <% if (Array.isArray(o.subtasks) && o.subtasks.length) { 
+               const tKey = byTitleKey(o.title);
+               const pre = (existingSubtasksByTitle && existingSubtasksByTitle[tKey]) ? new Set(existingSubtasksByTitle[tKey].map(s => String(s).toLowerCase().trim())) : new Set();
+          %>
+            <details class="ml-6 mt-1">
+              <summary class="text-sm text-gray-700 cursor-pointer">Subtasks</summary>
+              <div class="mt-1">
+                <% o.subtasks.forEach((st, j) => { 
+                     const label = (st && st.title) ? String(st.title) : String(st);
+                     const checkedSt = pre.has(label.toLowerCase().trim());
+                %>
+                  <label class="flex items-center gap-2 py-0.5">
+                    <input type="checkbox" name="subtasks[<%= tKey %>][]" value="<%= label %>" <%= checkedSt ? 'checked' : '' %> />
+                    <span class="text-sm"><%= label %></span>
+                  </label>
+                <% }) %>
+              </div>
+            </details>
+          <% } %>
+        <% }) %>
+      </form>
+      <% if (!options.length) { %>
+        <div class="text-sm text-gray-600">No template tasks found. Add Phase‑2 tasks first, then customize.</div>
+      <% } %>
+    </div>
+
+    <div class="p2-foot">
+      <div class="text-xs text-gray-500">
+        <%= configured ? 'Already configured — you can adjust anytime.' : 'Tip: this is saved to the case.' %>
+      </div>
+      <div class="flex gap-2">
+        <button class="p2-btn" type="button" onclick="P2Chooser.close()">Cancel</button>
+        <button class="p2-btn p2-primary" type="button" onclick="P2Chooser.save('<%= caseObj.id %>')">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const P2Chooser = (() => {
+    let activeGroup = '';
+    let q = '';
+    function el(id){ return document.getElementById(id); }
+    function show(){ const b = el('p2ChooserBackdrop'); if(!b) return; b.style.display = 'flex'; }
+    function close(){ const b = el('p2ChooserBackdrop'); if(!b) return; b.style.display = 'none'; }
+    function setGroup(g){
+      activeGroup = g || '';
+      document.querySelectorAll('.p2-chip').forEach(ch => ch.classList.toggle('active', ch.getAttribute('data-group')===activeGroup));
+      applyFilters();
+    }
+    function filter(text){
+      q = String(text||'').toLowerCase().trim();
+      applyFilters();
+    }
+    function applyFilters(){
+      document.querySelectorAll('#p2Form .p2-item').forEach(row => {
+        const inGroup = !activeGroup || row.getAttribute('data-group')===activeGroup;
+        const matches = !q || (row.getAttribute('data-title')||'').includes(q);
+        row.style.display = (inGroup && matches) ? 'flex' : 'none';
+      });
+    }
+    function selectAll(){
+      document.querySelectorAll('#p2Form input[type=checkbox]').forEach(cb => { if (cb.closest('.p2-item')?.style.display !== 'none') cb.checked = true; });
+    }
+    function selectNone(){
+      document.querySelectorAll('#p2Form input[type=checkbox]').forEach(cb => { if (cb.closest('.p2-item')?.style.display !== 'none') cb.checked = false; });
+    }
+    async function save(caseId){
+      const form = el('p2Form');
+      const data = new URLSearchParams();
+      form.querySelectorAll('input[name="titles[]"]:checked').forEach(cb => data.append('titles[]', cb.value));
+      form.querySelectorAll('input[name^="subtasks["]:checked').forEach(cb => data.append(cb.name, cb.value));
+      const res = await fetch(`/cases/${caseId}/phase2/choose`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' },
+        body: data.toString()
+      });
+      if (res.ok) { location.reload(); return; }
+      alert('Save failed'); 
+    }
+    function submit(e){ e.preventDefault(); return false; }
+    return { show, close, setGroup, filter, selectAll, selectNone, save, submit };
+  })();
+</script>

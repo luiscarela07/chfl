@@ -1,0 +1,24 @@
+<%
+  // Inputs (optional): done:boolean, kind:'Task'|'Phase', index?:number, label?:string, size?:number
+  const ok = !!(typeof done !== 'undefined' ? done : false);
+  const kindStr = (typeof kind !== 'undefined' && kind) ? String(kind) : 'Item';
+  const idx = (typeof index !== 'undefined' && index !== null) ? Number(index) : null;
+  const lbl = (typeof label !== 'undefined' && label !== null) ? String(label) : '';
+  const px = Math.max(12, Number(size || 16));
+
+  // Colors: green for complete, red for incomplete
+  const fill = ok ? '#16a34a' : '#ef4444';     // Tailwind green-600 / red-500
+  const stroke = '#d1d5db';                    // gray-300
+
+  let titleTxt = `${kindStr}${idx ? ' ' + idx : ''}`;
+  if (lbl) titleTxt += ` – ${lbl}`;
+  titleTxt += `: ${ok ? 'Complete' : 'Not Complete'}`;
+%>
+<span class="inline-flex items-center" title="<%= titleTxt %>">
+  <span
+    class="inline-block align-middle rounded-full"
+    aria-label="<%= titleTxt %>"
+    style="width:<%= px %>px;height:<%= px %>px;min-width:<%= px %>px;min-height:<%= px %>px;background-color:<%= fill %>;border:1px solid <%= stroke %>;">
+  </span>
+  <span class="sr-only"><%= titleTxt %></span>
+</span>

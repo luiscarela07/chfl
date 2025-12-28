@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 300" width="256" height="300">
+  <defs>
+    <style>
+      .shield-outer { fill: none; stroke: #B9E14A; stroke-width: 14; }
+      .shield-inner { fill: #0F5A3A; stroke: #ffffff; stroke-width: 8; }
+      .trunk { fill: #ffffff; }
+      .branch { fill: none; stroke: #ffffff; stroke-width: 10; stroke-linecap: round; }
+      .leaf { fill: #B9E14A; }
+      .base { fill: #ffffff; }
+    </style>
+  </defs>
+
+  <!-- Shield shape -->
+  <path class="shield-outer" d="M128 12 L230 42 L230 150 C230 210 185 250 128 282 C71 250 26 210 26 150 L26 42 Z"/>
+  <path class="shield-inner" d="M128 24 L218 50 L218 148 C218 200 180 236 128 266 C76 236 38 200 38 148 L38 50 Z"/>
+
+  <!-- Tree base -->
+  <path class="base" d="M92 230 h72 a4 4 0 0 1 4 4 v10 h-80 v-10 a4 4 0 0 1 4-4 z"/>
+  <rect class="base" x="104" y="220" width="48" height="10" rx="3"/>
+
+  <!-- Trunk -->
+  <path class="trunk" d="M120 215 v-42 c0-12 8-22 8-22 s8 10 8 22 v42 z"/>
+
+  <!-- Branches (stylized) -->
+  <path class="branch" d="M128 168 C110 160, 92 148, 80 132"/>
+  <path class="branch" d="M128 175 C106 170, 88 160, 70 146"/>
+  <path class="branch" d="M128 168 C144 160, 162 148, 174 132"/>
+  <path class="branch" d="M128 175 C150 170, 168 160, 186 146"/>
+  <path class="branch" d="M128 160 C122 144, 118 126, 118 112"/>
+  <path class="branch" d="M128 160 C134 144, 138 126, 138 112"/>
+
+  <!-- Leaves (14 total) -->
+  <!-- Left side leaves -->
+  <ellipse class="leaf" cx="74" cy="144" rx="10" ry="7" transform="rotate(-20 74 144)"/>
+  <ellipse class="leaf" cx="86" cy="132" rx="10" ry="7" transform="rotate(-10 86 132)"/>
+  <ellipse class="leaf" cx="96" cy="152" rx="10" ry="7" transform="rotate(10 96 152)"/>
+  <ellipse class="leaf" cx="108" cy="120" rx="10" ry="7" transform="rotate(-5 108 120)"/>
+  <ellipse class="leaf" cx="94" cy="168" rx="10" ry="7" transform="rotate(15 94 168)"/>
+  <ellipse class="leaf" cx="68" cy="154" rx="10" ry="7" transform="rotate(-5 68 154)"/>
+  <ellipse class="leaf" cx="112" cy="176" rx="10" ry="7" transform="rotate(20 112 176)"/>
+
+  <!-- Right side leaves -->
+  <ellipse class="leaf" cx="182" cy="144" rx="10" ry="7" transform="rotate(20 182 144)"/>
+  <ellipse class="leaf" cx="170" cy="132" rx="10" ry="7" transform="rotate(10 170 132)"/>
+  <ellipse class="leaf" cx="160" cy="152" rx="10" ry="7" transform="rotate(-10 160 152)"/>
+  <ellipse class="leaf" cx="148" cy="120" rx="10" ry="7" transform="rotate(5 148 120)"/>
+  <ellipse class="leaf" cx="162" cy="168" rx="10" ry="7" transform="rotate(-15 162 168)"/>
+  <ellipse class="leaf" cx="188" cy="154" rx="10" ry="7" transform="rotate(5 188 154)"/>
+  <ellipse class="leaf" cx="144" cy="176" rx="10" ry="7" transform="rotate(-20 144 176)"/>
+</svg>

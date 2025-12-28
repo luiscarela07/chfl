@@ -1,0 +1,19 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <title><%= (brand?.firm_name || 'Case Manager') %></title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Tailwind CDN (as used before) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root { --brand: <%= brand?.brand_color || '#7c3aed' %>; }
+    .brand-bg { background-color: var(--brand); }
+    .brand-border { border-color: var(--brand); }
+    .brand-text { color: var(--brand); }
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-900">
+<div class="max-w-6xl mx-auto px-4 py-4">

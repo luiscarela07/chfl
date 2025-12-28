@@ -1,0 +1,33 @@
+<%
+  // Inputs:
+  // - label: string
+  // - total: number (>=0)
+  // - done: number (>=0, <= total)
+  // - center: string (main center text)
+  const totalNum = Math.max(0, Number(total) || 0)
+  const doneNum  = Math.min(totalNum, Math.max(0, Number(done) || 0))
+  const r = 56, c = 2 * Math.PI * r
+  const doneLen = totalNum ? (doneNum / totalNum) * c : 0
+  const openLen = totalNum ? ((totalNum - doneNum) / totalNum) * c : 0
+%>
+<div class="bg-white rounded-lg shadow p-4 border flex flex-col items-center">
+  <div class="relative" style="width:140px;height:140px">
+    <svg viewBox="0 0 140 140" class="block">
+      <circle cx="70" cy="70" r="<%= r %>" fill="none" stroke="#e5e7eb" stroke-width="12" />
+      <% if (openLen > 0) { %>
+        <circle cx="70" cy="70" r="<%= r %>" fill="none" stroke="currentColor" stroke-width="12" stroke-linecap="round"
+                stroke-dasharray="<%= openLen %> <%= c %>" transform="rotate(-90 70 70)" class="text-red-400" />
+      <% } %>
+      <% if (doneLen > 0) { %>
+        <circle cx="70" cy="70" r="<%= r %>" fill="none" stroke="currentColor" stroke-width="12" stroke-linecap="round"
+                stroke-dasharray="<%= doneLen %> <%= c %>" transform="rotate(-90 70 70)" class="text-green-600" />
+      <% } %>
+    </svg>
+    <div class="absolute inset-0 flex items-center justify-center">
+      <div class="text-center">
+        <div class="text-lg font-bold"><%= center %></div>
+        <div class="text-xs text-gray-500"><%= label %></div>
+      </div>
+    </div>
+  </div>
+</div>

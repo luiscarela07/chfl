@@ -1,0 +1,17 @@
+﻿<%- include('partials/head') %>
+<div class="max-w-md mx-auto mt-16 bg-white shadow rounded-lg p-6">
+  <h1 class="text-xl font-semibold mb-4">Sign in</h1>
+  <% if (error) { %><div class="bg-red-50 text-red-800 border border-red-200 p-2 rounded mb-3 text-sm"><%= error %></div><% } %>
+  <form method="post" action="/login" class="grid gap-3">
+    <label class="grid gap-1 text-sm">
+      <span>Email</span>
+      <input type="email" name="email" class="border rounded px-3 py-2" required>
+    </label>
+    <label class="grid gap-1 text-sm">
+      <span>Password</span>
+      <input type="password" name="password" class="border rounded px-3 py-2" required>
+    </label>
+    <button class="brand-bg text-white px-4 py-2 rounded">Login</button>
+  </form>
+</div>
+<%- include('partials/foot') %>

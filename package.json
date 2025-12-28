@@ -1,0 +1,34 @@
+{
+  "name": "mini-case-mgmt-json",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "src/server.js",
+  "engines": {
+    "node": ">=20 <=22"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "seed": "node src/seed.js",
+    "patch": "node src/patch.js"
+  },
+  "dependencies": {
+    "bcryptjs": "2.4.3",
+    "dayjs": "1.11.11",
+    "dotenv": "16.4.5",
+    "ejs": "3.1.10",
+    "express": "^4.22.1",
+    "express-session": "1.17.3",
+    "helmet": "7.1.0",
+    "morgan": "1.10.0",
+    "uuid": "9.0.1"
+  },
+  "devDependencies": {
+    "eslint": "8.57.0",
+    "eslint-config-standard": "17.1.0",
+    "eslint-plugin-import": "2.29.1",
+    "eslint-plugin-n": "16.6.2",
+    "eslint-plugin-promise": "6.4.0",
+    "nodemon": "3.1.4"
+  }
+}
