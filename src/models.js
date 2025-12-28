@@ -854,7 +854,7 @@ export async function setPhaseSubtasksStatusExact(id, phase, states, actor = 'sy
 
 /* ========================= Settlement check types (task meta) ========================= */
 export const SETTLEMENT_CHECK_TYPES = [
-  'PIP','UM/UIM','Other'
+  'Liability (At-Fault)', 'PIP', 'UIM', 'MedPa', 'UM', 'Health Subro', 'WC', 'PD'
 ]
 export async function addSettlementCheckType(id, phase, taskId, checkType, actor = 'system') {
   return db.tx(async (data) => {
@@ -863,7 +863,7 @@ export async function addSettlementCheckType(id, phase, taskId, checkType, actor
     const p = Number(phase); if (![1,2,3,4,5].includes(p)) return null
     const t = (c.phaseTasks[p] || []).find(t => Number(t.id) === Number(taskId)); if (!t) return null
     const title = String(t.title || '').trim().toLowerCase()
-    if (!/settlement\s*check\s*received\??/.test(title)) return t
+    if (!/settlement\s*check\s*(received|deposited)\??/.test(title)) return t
     const type = String(checkType || '').trim(); if (!type) return t
     t.meta ||= {}; t.meta.settlementChecks ||= []
     if (!t.meta.settlementChecks.includes(type)) t.meta.settlementChecks.push(type)
@@ -879,7 +879,7 @@ export async function removeSettlementCheckType(id, phase, taskId, index, actor 
     const p = Number(phase); if (![1,2,3,4,5].includes(p)) return null
     const t = (c.phaseTasks[p] || []).find(t => Number(t.id) === Number(taskId)); if (!t) return null
     const title = String(t.title || '').trim().toLowerCase()
-    if (!/settlement\s*check\s*received\??/.test(title)) return t
+    if (!/settlement\s*check\s*(received|deposited)\??/.test(title)) return t
     const idx = Number(index)
     if (Array.isArray(t.meta?.settlementChecks) && idx >= 0 && idx < t.meta.settlementChecks.length) {
       const [removed] = t.meta.settlementChecks.splice(idx, 1)
