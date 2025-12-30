@@ -164,7 +164,16 @@ const _lit  = (typeof lit  !== 'undefined' && lit ) ? lit  : 'any'
 <% } %>
               </div>
             </td>
-            <td class="p-2"><%= (c.litigationStatus==='litigation'?'Litigation':'Pre') %></td>
+            <td class="p-2">
+              <form method="post" action="/cases/<%= c.id %>/litigation?next=/cases" class="inline">
+                <label class="sr-only" for="lit-<%= c.id %>">Litigation status</label>
+                <select id="lit-<%= c.id %>" name="litigation" class="border rounded px-2 py-1 text-xs"
+                        onchange="this.form.submit()">
+                  <option value="pre" <%= (c.litigationStatus||'pre')!=='litigation'?'selected':'' %>>Pre</option>
+                  <option value="litigation" <%= (c.litigationStatus||'pre')==='litigation'?'selected':'' %>>Litigation</option>
+                </select>
+              </form>
+            </td>
             <td class="p-2"><%= c.dueDate || '—' %></td>
             <td class="p-2"><a class="underline" href="/cases/<%= c.id %>/edit">Edit</a></td>
           </tr>

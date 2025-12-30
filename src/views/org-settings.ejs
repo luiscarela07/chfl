@@ -1,0 +1,91 @@
+<%- include('partials/head') %>
+<%- include('partials/nav') %>
+
+<div class="max-w-4xl mx-auto px-4 py-6">
+  <div class="flex items-center justify-between mb-4">
+    <h1 class="text-2xl font-semibold">Organization Settings</h1>
+    <a class="underline text-sm" href="/">Back to Dashboard</a>
+  </div>
+
+  <% const isAdmin = String(user?.role || 'admin').toLowerCase() === 'admin'; %>
+
+  <div class="bg-white border rounded-lg shadow p-4 mb-6">
+    <h2 class="text-lg font-semibold mb-2">Users</h2>
+    <p class="text-sm text-gray-600 mb-4">
+      Roles: <strong>Admin</strong> (full access) • <strong>View Only</strong> (read-only)
+    </p>
+
+    <% if (error) { %>
+      <div class="mb-3 p-3 border rounded bg-red-50 text-red-700"><%= error %></div>
+    <% } %>
+
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="bg-gray-100">
+          <tr>
+            <th class="text-left p-2">Email</th>
+            <th class="text-left p-2">Role</th>
+            <th class="text-left p-2">Created</th>
+            <th class="text-left p-2">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% (users || []).forEach(u => { %>
+            <tr class="border-t">
+              <td class="p-2"><%= u.email %></td>
+              <td class="p-2"><%= (u.role === 'admin') ? 'Admin' : 'View Only' %></td>
+              <td class="p-2"><%= u.created_at ? String(u.created_at).slice(0,10) : '—' %></td>
+              <td class="p-2">
+                <% if (isAdmin) { %>
+                  <form method="post" action="/settings/users/<%= u.id %>/reset-password" class="flex items-center gap-2">
+                    <label class="sr-only" for="pw-<%= u.id %>">New password</label>
+                    <input id="pw-<%= u.id %>" name="password" type="password" minlength="8" required
+                           class="border rounded px-2 py-1 text-xs" placeholder="New password">
+                    <button type="submit" class="px-2 py-1 rounded border text-xs">Reset password</button>
+                  </form>
+                <% } else { %>
+                  <span class="text-xs text-gray-500">—</span>
+                <% } %>
+              </td>
+            </tr>
+          <% }) %>
+          <% if (!users || !users.length) { %>
+            <tr><td colspan="4" class="p-4 text-center text-gray-500">No users.</td></tr>
+          <% } %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="bg-white border rounded-lg shadow p-4">
+    <h2 class="text-lg font-semibold mb-2">Create User</h2>
+    <% if (!isAdmin) { %>
+      <div class="p-3 border rounded bg-yellow-50 text-yellow-800">
+        Your account is <strong>View Only</strong>. Ask an Admin to create users.
+      </div>
+    <% } else { %>
+      <form method="post" action="/settings/users" class="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div>
+          <label class="block text-sm text-gray-600 mb-1">Email</label>
+          <input name="email" type="email" class="border rounded px-3 py-2 w-full" required>
+        </div>
+        <div>
+          <label class="block text-sm text-gray-600 mb-1">Password (min 8 chars)</label>
+          <input name="password" type="password" class="border rounded px-3 py-2 w-full" minlength="8" required>
+        </div>
+        <div>
+          <label class="block text-sm text-gray-600 mb-1">Role</label>
+          <select name="role" class="border rounded px-3 py-2 w-full">
+            <option value="admin">Admin</option>
+            <option value="view" selected>View Only</option>
+          </select>
+        </div>
+        <div class="md:col-span-3 flex justify-end">
+          <button class="brand-bg text-white px-4 py-2 rounded" type="submit">Create User</button>
+        </div>
+      </form>
+    <% } %>
+  </div>
+</div>
+
+<%- include('partials/foot') %>

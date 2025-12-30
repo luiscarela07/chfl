@@ -249,6 +249,23 @@
                       <button class="text-red-600 underline text-xs">Delete</button>
                     </form>
                   </li>
+
+                  <% if (Array.isArray(st.children) && st.children.length) { %>
+                    <ul class="ml-6 mt-1 space-y-1">
+                      <% st.children.forEach(gc => { if (gc.deleted_at) return; const gtip = `${gc.title}: ${gc.done?'Complete':'Not Complete'}`; %>
+                        <li class="row" data-grandchild data-taskid="<%=t.id%>" data-subid="<%=st.id%>" data-childid="<%=gc.id%>" data-phase="<%=p%>">
+                          <input type="checkbox" class="js-grand-toggle mt-0.5"
+                                 data-url="/cases/<%= c.id %>/phase/<%=p%>/tasks/<%=t.id%>/subtasks/<%=st.id%>/children/<%=gc.id%>/toggle"
+                                 aria-label="Toggle grandchild" <%= gc.done?'checked':'' %>>
+                          <img class="js-grand-icon"
+                               src="<%= gc.done ? '/assets/icons/chlf-status-tree-green.svg' : '/assets/icons/chlf-status-tree-red.svg' %>"
+                               alt="<%= gtip %>" title="<%= gtip %>" style="width:14px;height:14px">
+                          <div class="title text-xs"><%= gc.title %></div>
+                        </li>
+                      <% }) %>
+                    </ul>
+                  <% } %>
+
                 <% }) %>
               </ul>
             <% } %>
@@ -672,3 +689,171 @@ const __existingSubtasksByTitle = (() => {
   configured: __configured,
   existingSubtasksByTitle: __existingSubtasksByTitle
 }) %>
+<% if (lit === 'litigation') { 
+  const __case3 = c;
+  const __P3 = __case3.phaseTasks || {};
+  const __tasks3 = Array.isArray(__P3[3]) ? __P3[3] : [];
+  const __currentTitles3 = __tasks3.map(t => (t && t.title) ? String(t.title) : '').filter(Boolean);
+  const __presets3 = (typeof presetsPhase3Lit !== 'undefined' && Array.isArray(presetsPhase3Lit)) ? presetsPhase3Lit : [];
+  const __configured3 = !!(__case3.flags && __case3.flags.phase3LitConfigured);
+  const __existingSubtasksByTitle3 = (() => {
+    const m = {};
+    (__tasks3 || []).forEach(t => {
+      const title = (t && t.title) ? String(t.title) : '';
+      if (!title) return;
+      const k = 'title:' + title.toLowerCase().trim().replace(/\s+/g,' ');
+      const subs = Array.isArray(t && t.children) ? t.children : [];
+      const names = subs.map(st => (st && st.title) ? String(st.title) : String(st)).filter(Boolean);
+      m[k] = names;
+    });
+    return m;
+  })();
+%>
+<div class="ml-auto mt-2">
+  <button type="button" class="px-3 py-1 rounded border" onclick="P3Chooser.show()">Customize Phase 3</button>
+</div>
+
+<style>
+  .p3-modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.35);display:none;align-items:center;justify-content:center;z-index:60}
+  .p3-modal{background:#fff;max-width:720px;width:96%;max-height:88vh;overflow:hidden;border-radius:12px;box-shadow:0 10px 25px rgba(0,0,0,.15);display:flex;flex-direction:column}
+  .p3-head{padding:.9rem 1rem;border-bottom:1px solid #e5e7eb;display:flex;gap:.5rem;align-items:center;justify-content:space-between}
+  .p3-body{padding:1rem;overflow:auto}
+  .p3-actions{padding:.9rem 1rem;border-top:1px solid #e5e7eb;display:flex;gap:.5rem;justify-content:flex-end}
+  .p3-list{display:flex;flex-direction:column;gap:.5rem}
+  .p3-item{border:1px solid #e5e7eb;border-radius:10px;padding:.6rem .75rem}
+  .p3-sub{margin:.5rem 0 0 1.5rem;display:none}
+  .p3-sub.active{display:block}
+  .p3-sub label{display:flex;gap:.5rem;align-items:flex-start;margin:.25rem 0}
+  .p3-muted{color:#6b7280}
+</style>
+
+<div id="p3ChooserBackdrop" class="p3-modal-backdrop" role="dialog" aria-modal="true" aria-label="Customize Phase 3">
+  <div class="p3-modal">
+    <div class="p3-head">
+      <div>
+        <div style="font-weight:700">Customize Phase 3 (Litigation)</div>
+        <div class="p3-muted" style="font-size:.9rem">Choose which “File Suit & Discovery” tasks apply to this case.</div>
+      </div>
+      <button type="button" class="px-3 py-1 rounded border" onclick="P3Chooser.close()">Close</button>
+    </div>
+
+    <div class="p3-body">
+      <div style="display:flex;gap:.5rem;align-items:center;margin-bottom:.75rem">
+        <input id="p3_q" class="border rounded px-3 py-2" style="flex:1" placeholder="Search tasks..." oninput="P3Chooser.filter(this.value)">
+        <button type="button" class="px-3 py-2 rounded border" onclick="P3Chooser.selectAll()">All</button>
+        <button type="button" class="px-3 py-2 rounded border" onclick="P3Chooser.selectNone()">None</button>
+      </div>
+
+      <form id="p3ChooserForm" onsubmit="return P3Chooser.submit(event)">
+        <div class="p3-list" id="p3List">
+          <%
+            const byTitleKey3 = t => ('title:' + String(t||'').toLowerCase().trim().replace(/\s+/g,' '));
+            const optSet3 = new Set();
+            const options3 = [];
+            const addOpt3 = (title, subtasks) => {
+              const k = byTitleKey3(title);
+              if (!title || optSet3.has(k)) return;
+              optSet3.add(k);
+              options3.push({ title, key: k, subtasks: Array.isArray(subtasks) ? subtasks : [] });
+            };
+            (__presets3 || []).forEach(p => addOpt3(p && p.title, (p && p.subtasks) || []));
+            if (!options3.length) (__currentTitles3 || []).forEach(t => addOpt3(t, []));
+            const existingKeys3 = new Set((__currentTitles3 || []).map(byTitleKey3));
+          %>
+
+          <% options3.forEach(o => { 
+               const checked = existingKeys3.has(o.key) ? 'checked' : '';
+               const existingSubs = __existingSubtasksByTitle3[o.key] || [];
+          %>
+            <div class="p3-item" data-title="<%= o.title %>">
+              <label style="display:flex;gap:.5rem;align-items:flex-start">
+                <input type="checkbox" name="titles[]" value="<%= o.title %>" <%= checked %>
+                       onchange="P3Chooser.toggleSubs('<%= o.key %>', this.checked)">
+                <div>
+                  <div style="font-weight:600"><%= o.title %></div>
+                  <% if (o.subtasks && o.subtasks.length) { %>
+                    <div class="p3-muted" style="font-size:.85rem">Has <%= o.subtasks.length %> subtasks</div>
+                  <% } %>
+                </div>
+              </label>
+
+              <% if (o.subtasks && o.subtasks.length) { %>
+                <div class="p3-sub" id="p3-sub-<%= o.key.replace(/[^a-z0-9_-]/ig,'_') %>">
+                  <% o.subtasks.forEach(st => { 
+                       const stTitle = (typeof st === 'string') ? st : (st && st.title) ? st.title : '';
+                       if (!stTitle) return;
+                       const isOn = existingSubs.map(s=>String(s).toLowerCase().trim()).includes(String(stTitle).toLowerCase().trim());
+                  %>
+                    <label>
+                      <input type="checkbox" name="subtasks[<%= o.key %>]" value="<%= stTitle %>" <%= isOn ? 'checked' : '' %>>
+                      <span><%= stTitle %></span>
+                    </label>
+                  <% }) %>
+                  <div class="p3-muted" style="font-size:.8rem;margin-top:.25rem">Grandchildren are included automatically for chosen subtasks.</div>
+                </div>
+              <% } %>
+            </div>
+          <% }) %>
+        </div>
+      </form>
+    </div>
+
+    <div class="p3-actions">
+      <button type="button" class="px-3 py-2 rounded border" onclick="P3Chooser.close()">Cancel</button>
+      <button type="button" class="px-3 py-2 rounded border" onclick="P3Chooser.save(<%= c.id %>)">
+        Save
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const P3Chooser = (() => {
+    let q = '';
+    function el(id){ return document.getElementById(id); }
+    function show(){ const b = el('p3ChooserBackdrop'); if(!b) return; b.style.display = 'flex'; setInitialSubs(); }
+    function close(){ const b = el('p3ChooserBackdrop'); if(!b) return; b.style.display = 'none'; }
+    function filter(text){
+      q = String(text||'').toLowerCase().trim();
+      document.querySelectorAll('#p3List [data-title]').forEach(card => {
+        const t = String(card.getAttribute('data-title')||'').toLowerCase();
+        card.style.display = (!q || t.includes(q)) ? '' : 'none';
+      });
+    }
+    function toggleSubs(key, on){
+      const id = 'p3-sub-' + String(key).replace(/[^a-z0-9_-]/ig,'_');
+      const box = el(id);
+      if (!box) return;
+      box.classList.toggle('active', !!on);
+    }
+    function setInitialSubs(){
+      document.querySelectorAll('#p3ChooserForm input[name="titles[]"]').forEach(cb => {
+        const title = cb.value;
+        const key = 'title:' + String(title||'').toLowerCase().trim().replace(/\s+/g,' ');
+        toggleSubs(key, cb.checked);
+      });
+    }
+    function selectAll(){
+      document.querySelectorAll('#p3ChooserForm input[name="titles[]"]').forEach(cb => { cb.checked = true; cb.dispatchEvent(new Event('change')); });
+    }
+    function selectNone(){
+      document.querySelectorAll('#p3ChooserForm input[name="titles[]"]').forEach(cb => { cb.checked = false; cb.dispatchEvent(new Event('change')); });
+    }
+    async function save(caseId){
+      const form = el('p3ChooserForm');
+      const data = new URLSearchParams();
+      form.querySelectorAll('input[name="titles[]"]:checked').forEach(cb => data.append('titles[]', cb.value));
+      form.querySelectorAll('input[name^="subtasks["]:checked').forEach(cb => data.append(cb.name, cb.value));
+      const res = await fetch(`/cases/${caseId}/phase3-lit/choose`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' },
+        body: data.toString()
+      });
+      if (res.ok) { location.reload(); return; }
+      alert('Save failed');
+    }
+    function submit(e){ e.preventDefault(); return false; }
+    return { show, close, filter, toggleSubs, selectAll, selectNone, save, submit };
+  })();
+</script>
+<% } %>

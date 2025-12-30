@@ -134,13 +134,13 @@ const P3_TEMPLATES = [
   'Offer received?',
   'Counter(s) sent?',
   'Case settled',
-  'Send to insurance co  draft instructions, w-9 and request for release agreement',
+  'Send to insurance co draft instructions, w-9 and request for release agreement',
   'Release agreement received from ins co?',
   'Release sent to Client for signature?',
   'Release signed?',
   'If notary is necessary, release notarized?',
   'Forward release to insurance carrier',
-  'Reductions prepared and sent  to all the providers identified in phase 1 and 2',
+  'Reductions prepared and sent to all the providers identified in phase 1 and 2',
   'Approved reductions received from all Providers (from phase 1 and 2)',
   'If applicable, health insurance reduction request sent?',
   'If applicable, approved reduction from health insurance received?',
@@ -153,6 +153,135 @@ const P3_TEMPLATES = [
   'Prepare forward payment letters to everyone in #14, 16 and scan to file',
   'Prepare letter to client to forward settlement check and scan to file'
 ]
+
+/* ========================= Phase 3 Litigation Template ========================= */
+const P3_LIT = {
+  tasks: [
+    {
+      title: 'Initiate Lawsuit to Defendant(s) Original Answer',
+      children: [
+        'Identify Defendant(s), registered agent and address for service',
+        'Prepare Original Petition and Request for Citation for Each Defendant',
+        'Look at County website  save local rules to file',
+        'File Original Petition and Request for Citation',
+        'Save receipt to expenses folder and CP costs',
+        'Received citations from court',
+        'Forward Original Petition and citations to process server',
+        'Calendar follow up - 2 weeks, 3 weeks, 1 month, 3 months',
+        'Received Return of Citation from the Process Server  save to file',
+        'Calendar Defendants Deadline to File Original Answer',
+        'Received Defendant(s) Original Answer'
+      ]
+    },
+    {
+      title: 'Calendaring',
+      children: [
+        '90 days from Original Answer  Deadline to file Notice of Filings',
+        'Calendar 30 days  Deadline to serve Initial Disclosures',
+        {
+          title: 'Trial date and docket control order received?',
+          children: [
+            'If yes, calendar all deadlines',
+            'If no, draft Motion for Trial Setting and Entry of Docket Control Order',
+            'Confirm DCO calendared'
+          ]
+        }
+      ]
+    },
+    {
+      title: 'Plaintiffs Discovery',
+      children: [
+        'Draft and serve Plaintiffs Initial Disclosures',
+        'Create table of Plaintiffs Discovery Responses',
+        'Draft and serve Plaintiffs Interrogatories to Defendant',
+        'Draft and serve Plaintiffs Request for Production to Defendant',
+        'Draft and serve Plaintiffs Request for Admissions to Defendant',
+        'Draft and send letter to request deposition dates',
+        'Prepare Notice of Deposition',
+        'Calendar depo',
+        'Send NOD to court reporter',
+        'If videographer  send notice'
+      ]
+    },
+    {
+      title: 'Defendants Discovery',
+      children: [
+        'Receipt of Defendants Initial Disclosures - date',
+        'Create table of Defendant(s) Discovery Responses',
+        'Def served Interrogatories? Calendar 30 day deadline',
+        'Def served Request for Production? Calendar 30 day deadline',
+        'Def served Plaintiffs Request for Admissions? Calendar 30 day deadline',
+        'Def served Notice of Deposition for Plaintiff?'
+      ]
+    },
+    {
+      title: 'Experts',
+      children: [
+        {
+          title: 'Plaintiffs Expert deadline',
+          children: [
+            'Send file materials to expert',
+            'Report received?'
+          ]
+        },
+        'Defendants Expert deadline'
+      ]
+    }
+  ]
+}
+
+function seedPhase3LitDefaults_mutate(data, c, actor = 'migration:seedPhase3LitDefaults') {
+  ensurePhaseTasks(c)
+  c.phaseTasks[3] ||= []
+  if (c.phaseTasks[3].length > 0) return
+
+  const now = new Date().toISOString()
+  let tid = 0
+  const tasks = Array.isArray(phase3LitTemplate()) ? phase3LitTemplate() : []
+
+  for (const t of tasks) {
+    tid += 1
+    const taskObj = {
+      id: tid,
+      title: String(t.title || '').trim() || `Task ${tid}`,
+      done: false,
+      createdAt: now,
+      updatedAt: now
+    }
+
+    const subs = Array.isArray(t.subtasks) ? t.subtasks : []
+    if (subs.length) {
+      taskObj.children = subs.map((st, i) => {
+        const sub = {
+          id: i + 1,
+          title: String(st.title || '').trim() || `Subtask ${i + 1}`,
+          done: false,
+          createdAt: now,
+          updatedAt: now
+        }
+        const grands = Array.isArray(st.grandchildren) ? st.grandchildren : []
+        if (grands.length) {
+          sub.children = grands
+            .map(g => String(g || '').trim())
+            .filter(Boolean)
+            .map((g, j) => ({
+              id: j + 1,
+              title: g,
+              done: false,
+              createdAt: now,
+              updatedAt: now
+            }))
+        }
+        return sub
+      })
+    }
+
+    c.phaseTasks[3].push(taskObj)
+  }
+
+  recalcPhasesFromTasks(c)
+  recordAuditUnsafe?.(data, { type: 'phase3.lit.seed', caseId: c.id, actor, meta: { tasks: c.phaseTasks[3].length } })
+}
 
 /* ========================= Seeding / Sync ========================= */
 function injectPhase1IfEmpty(c) {
@@ -212,7 +341,6 @@ function seedPhase3Defaults(c, data) {
     }
   }
 }
-
 /* ========================= Demand (P1 LOP sync) ========================= */
 function findP1LopTask(c) {
   ensurePhaseTasks(c)
@@ -229,7 +357,6 @@ function syncP1LopToDemand_mutate(data, c) {
   ensurePhaseTasks(c); c.phaseTasks[destPhase] ||= []
   let dest = findLinkedDestFromP1(c, destPhase, p1.id)
   const now = new Date().toISOString()
-
   if (!dest) {
     dest = {
       id: nextTaskId(c.phaseTasks[destPhase]),
@@ -257,10 +384,8 @@ function syncP1LopToDemand_mutate(data, c) {
     dest.sourceRef = { phase: 1, taskId: p1.id, key: P1_TEMPLATE_KEY_LOP }
     recordAuditUnsafe(data, { type: 'task.sync.p1toDemand', caseId: c.id, clientName: c.clientName, srcTaskId: p1.id, dstTaskId: dest.id, dstPhase: destPhase, actor: 'sync' })
   }
-
   recalcPhasesFromTasks(c)
 }
-
 /* ========================= Phases recompute ========================= */
 function recalcPhasesFromTasks(c) {
   c.phases ||= { 1:false, 2:false, 3:false, 4:false, 5:false }
@@ -275,18 +400,16 @@ function recalcPhasesFromTasks(c) {
   }
 }
 function recalcPhases(c) { return recalcPhasesFromTasks(c) }
-
 /* ========================= Migrations ========================= */
 export async function migrateAndSeed() {
   await db.tx(async (data) => {
     try {
       data.meta ||= { migrations: [] }
       data.users ||= []; data.cases ||= []; data.audit ||= []
-
       if (!data.meta.migrations.includes('m001_base')) {
         if (!data.users.find(u => u.email === config.adminEmail)) {
           const hash = bcrypt.hashSync(config.adminPassword, 10)
-          data.users.push({ id: 1, email: config.adminEmail, password_hash: hash, created_at: new Date().toISOString() })
+          data.users.push({ id: 1, email: config.adminEmail, password_hash: hash, role: 'admin', created_at: new Date().toISOString() })
         }
         if (data.cases.length === 0) {
           const now = new Date().toISOString()
@@ -294,8 +417,15 @@ export async function migrateAndSeed() {
             phases: {1:false,2:false,3:false,4:false,5:false}, phaseTasks: {1:[],2:[],3:[],4:[],5:[]}, openedAt: now, dueDate: null, description: '', notes: [], tasks: [] })
         }
         data.meta.migrations.push('m001_base')
-      }
+        if (!data.meta.migrations.includes('m002_user_roles')) {
+          for (const u of data.users) {
+            if (!u.role) u.role = 'admin'
+            u.role = String(u.role).toLowerCase() === 'view' ? 'view' : (String(u.role).toLowerCase() === 'view_only' ? 'view' : (String(u.role).toLowerCase() === 'readonly' ? 'view' : (String(u.role).toLowerCase() === 'viewer' ? 'view' : (String(u.role).toLowerCase() === 'view-only' ? 'view' : (String(u.role).toLowerCase() === 'admin' ? 'admin' : 'admin')))))
+          }
+          data.meta.migrations.push('m002_user_roles')
+        }
 
+      }
       if (!data.meta.migrations.includes('p003_add_phases_flags')) {
         for (const c of data.cases) {
           c.phases ||= {1:false,2:false,3:false,4:false}
@@ -423,7 +553,103 @@ export async function getDashboardData() {
   return { org: { totalCases, openTasksByPhase, totalTasksByPhase } }
 }
 
+export async function getOpenTasksByPhase(phase) {
+  const p = Number(phase)
+  if (![1,2,3,4,5].includes(p)) return []
+
+  const data = await db.load()
+  const out = []
+
+  for (const c of (Array.isArray(data.cases) ? data.cases : [])) {
+    ensurePhaseTasks(c)
+    c.litigationStatus ||= 'pre'
+
+    const tasks = Array.isArray(c.phaseTasks?.[p]) ? c.phaseTasks[p] : []
+    const openTasks = []
+
+    for (const t of tasks) {
+      if (t?.deleted_at) continue
+      const openSubs = []
+      for (const st of (Array.isArray(t?.children) ? t.children : [])) {
+        if (st?.deleted_at) continue
+        const openGrands = []
+        for (const gc of (Array.isArray(st?.children) ? st.children : [])) {
+          if (gc?.deleted_at) continue
+          if (!gc?.done) openGrands.push({ id: gc.id, title: gc.title })
+        }
+        if (!st?.done || openGrands.length) {
+          openSubs.push({ id: st.id, title: st.title, done: !!st.done, grandchildren: openGrands })
+        }
+      }
+
+      if (!t?.done || openSubs.length) {
+        openTasks.push({ id: t.id, title: t.title, done: !!t.done, subtasks: openSubs })
+      }
+    }
+
+    if (openTasks.length) {
+      out.push({
+        caseId: c.id,
+        clientName: c.clientName || c.title || `Case ${c.id}`,
+        litigationStatus: c.litigationStatus,
+        openTasks
+      })
+    }
+  }
+
+  out.sort((a, b) => String(a.clientName).localeCompare(String(b.clientName)))
+  return out
+}
+
 /* ========================= Auth ========================= */
+
+export async function listUsers() {
+  const data = await db.load()
+  const users = Array.isArray(data.users) ? data.users : []
+  return users
+    .map(u => ({ id: u.id, email: u.email, role: u.role || 'admin', created_at: u.created_at }))
+    .sort((a, b) => String(a.email).localeCompare(String(b.email)))
+}
+
+export async function createUser({ email, password, role }, actor = 'system') {
+  const cleanEmail = String(email || '').trim().toLowerCase()
+  const cleanRole = String(role || 'view').toLowerCase() === 'admin' ? 'admin' : 'view'
+  const pw = String(password || '')
+  if (!cleanEmail || !cleanEmail.includes('@')) throw new Error('invalid_email')
+  if (pw.length < 8) throw new Error('password_too_short')
+
+  return db.tx(async (data) => {
+    data.users ||= []
+    if (data.users.find(u => String(u.email).toLowerCase() === cleanEmail)) throw new Error('email_exists')
+    const id = (data.users.reduce((m, u) => Math.max(m, u.id || 0), 0) || 0) + 1
+    const hash = bcrypt.hashSync(pw, 10)
+    const now = new Date().toISOString()
+    const user = { id, email: cleanEmail, password_hash: hash, role: cleanRole, created_at: now }
+    data.users.push(user)
+    recordAuditUnsafe?.(data, { type: 'user.create', actor, meta: { id, email: cleanEmail, role: cleanRole } })
+    return { id, email: cleanEmail, role: cleanRole, created_at: now }
+  })
+}
+
+
+export async function resetUserPassword(userId, newPassword, actor = 'system') {
+  const id = Number(userId)
+  const pw = String(newPassword || '')
+  if (!Number.isFinite(id) || id <= 0) throw new Error('invalid_user')
+  if (pw.length < 8) throw new Error('password_too_short')
+
+  return db.tx(async (data) => {
+    data.users ||= []
+    const u = data.users.find(x => Number(x.id) === id)
+    if (!u) throw new Error('user_not_found')
+    u.password_hash = bcrypt.hashSync(pw, 10)
+    const now = new Date().toISOString()
+    u.updated_at = now
+    recordAuditUnsafe?.(data, { type: 'user.password_reset', actor, meta: { id: u.id, email: u.email } })
+    return { ok: true, id: u.id, email: u.email }
+  })
+}
+
 export async function findUserByEmail(email) {
   const data = await db.load()
   return data.users.find(u => u.email === (email || '').toLowerCase()) || null
@@ -436,13 +662,24 @@ export async function listCases(q = '') {
   return data.cases
     .filter(c => !needle || String(c.clientName || '').toLowerCase().includes(needle))
     .sort((a,b) => b.id - a.id)
+
+
 }
 export async function getCase(id) {
-  const data = await db.load()
-  const c = data.cases.find(x => x.id === id) || null
-  if (!c) return null
-  ensurePhaseTasks(c); recalcPhasesFromTasks(c)
-  return c
+  return db.tx(async (data) => {
+    const c = data.cases.find(x => x.id === id) || null
+    if (!c) return null
+
+    ensurePhaseTasks(c)
+    c.litigationStatus ||= 'pre'
+
+    if (String(c.litigationStatus).toLowerCase() === 'litigation') {
+      seedPhase3LitDefaults_mutate(data, c)
+    }
+
+    recalcPhasesFromTasks(c)
+    return c
+  })
 }
 export async function createCase(payload) {
   return db.tx(async (data) => {
@@ -474,7 +711,6 @@ export async function updateCase(id, payload) {
     const c = data.cases.find(x => Number(x.id) === Number(id))
     if (!c) return null
     ensureCaseShape(c)
-
     const before = {
       clientName: c.clientName,
       phase: c.phase,
@@ -484,7 +720,6 @@ export async function updateCase(id, payload) {
       dateOfIncident: c.dateOfIncident,
       typeOfCase: c.typeOfCase
     }
-
     if (payload.clientName !== undefined) {
       const name = String(payload.clientName || '').trim()
       if (name) c.clientName = name
@@ -500,9 +735,7 @@ export async function updateCase(id, payload) {
     }
     if (payload.dateOfIncident !== undefined) c.dateOfIncident = payload.dateOfIncident
     if (payload.typeOfCase !== undefined) c.typeOfCase = payload.typeOfCase
-
     recalcPhases(c)
-
     recordAuditUnsafe(data, {
       type: 'case.update',
       caseId: c.id,
@@ -555,7 +788,6 @@ export async function deleteCase(id) {
     }
   })
 }
-
 /* ========================= Tasks ========================= */
 export async function addPhaseTask(id, phase, title, actor = 'system') {
   return db.tx(async (data) => {
@@ -635,7 +867,6 @@ export async function deletePhaseTask(id, phase, taskId, actor = 'system') {
     return true
   })
 }
-
 /* ========================= Subtasks ========================= */
 export async function addPhaseSubtask(id, phase, taskId, title, actor = 'system') {
   return db.tx(async (data) => {
@@ -693,14 +924,11 @@ export async function deletePhaseSubtask(id, phase, taskId, subId, actor = 'syst
     ensurePhaseTasks(c)
     const p = Number(phase); if (![1,2,3,4,5].includes(p)) return null
     const t = c.phaseTasks[p].find(t => t.id === Number(taskId)); if (!t) return null
-
     const subs = Array.isArray(t.children) ? t.children : (t.children = [])
     const idx = subs.findIndex(st => Number(st.id) === Number(subId))
     if (idx < 0) return null
-
     const s = subs[idx]
     if (s.deleted_at) return { ok: true }
-
     s.deleted_at = new Date().toISOString()
     s._undo_meta = { index: idx }
     recordAuditUnsafe(data, {
@@ -749,21 +977,16 @@ export async function undoDeletePhaseSubtask(caseId, phase, taskId, subId, actor
     ensureCaseShape(c)
     const tasks = (c.phaseTasks && c.phaseTasks[phase]) || []
     const t = tasks.find(x => Number(x.id) === Number(taskId)); if (!t) throw new Error('task not found')
-
     let subs = Array.isArray(t.children) ? t.children : null
     if (!subs) subs = (t.children = [])
-
     const matchById = s => Number(s.id) === Number(subId) || String(s.id) === String(subId)
     let idx = subs.findIndex(matchById)
     if (idx === -1 && Number.isInteger(Number(subId)) && Number(subId) >= 0 && Number(subId) < subs.length) idx = Number(subId)
     if (idx === -1) throw new Error('subtask not found')
-
     const s = subs[idx]
     if (!s.deleted_at) return { ok: true }
-
     const before = { ...s }
     delete s.deleted_at
-
     const desiredIndex = (s._undo_meta && Number.isInteger(s._undo_meta.index)) ? s._undo_meta.index : idx
     if (desiredIndex !== idx && desiredIndex >= 0 && desiredIndex < subs.length) {
       const [item] = subs.splice(idx, 1)
@@ -771,7 +994,6 @@ export async function undoDeletePhaseSubtask(caseId, phase, taskId, subId, actor
       subs.splice(insertAt, 0, item)
     }
     delete s._undo_meta
-
     recordAuditUnsafe(data, {
       type: 'subtask.undo_delete',
       caseId, phase, taskId, subId,
@@ -782,7 +1004,6 @@ export async function undoDeletePhaseSubtask(caseId, phase, taskId, subId, actor
     return { ok: true }
   })
 }
-
 /* ========================= Bulk ops / reorder ========================= */
 export async function reorderPhaseTasks(id, phase, order, actor = 'system') {
   return db.tx(async (data) => {
@@ -852,9 +1073,37 @@ export async function setPhaseSubtasksStatusExact(id, phase, states, actor = 'sy
   })
 }
 
+export async function togglePhaseGrandchild(id, phase, taskId, subId, childId, actor = 'system') {
+  return db.tx(async (data) => {
+    const c = data.cases.find(x => Number(x.id) === Number(id))
+    if (!c) return null
+    ensurePhaseTasks(c)
+
+    const p = Number(phase)
+    if (![1,2,3,4,5].includes(p)) return null
+    const t = (c.phaseTasks[p] || []).find(x => Number(x.id) === Number(taskId))
+    if (!t || !Array.isArray(t.children)) return null
+
+    const st = t.children.find(x => Number(x.id) === Number(subId))
+    if (!st || !Array.isArray(st.children)) return null
+
+    const gc = st.children.find(x => Number(x.id) === Number(childId))
+    if (!gc) return null
+
+    gc.done = !gc.done
+    const now = new Date().toISOString()
+    gc.updatedAt = now
+    st.updatedAt = now
+    t.updatedAt = now
+
+    recalcPhasesFromTasks(c)
+    recordAuditUnsafe?.(data, { type: 'grandchild.toggle', caseId: c.id, phase: p, taskId: t.id, subId: st.id, childId: gc.id, actor })
+    return { ok: true, done: !!gc.done }
+  })
+}
 /* ========================= Settlement check types (task meta) ========================= */
 export const SETTLEMENT_CHECK_TYPES = [
-  'Liability (At-Fault)', 'PIP', 'UIM', 'MedPa', 'UM', 'Health Subro', 'WC', 'PD'
+  'PIP','UM/UIM','Other'
 ]
 export async function addSettlementCheckType(id, phase, taskId, checkType, actor = 'system') {
   return db.tx(async (data) => {
@@ -863,7 +1112,7 @@ export async function addSettlementCheckType(id, phase, taskId, checkType, actor
     const p = Number(phase); if (![1,2,3,4,5].includes(p)) return null
     const t = (c.phaseTasks[p] || []).find(t => Number(t.id) === Number(taskId)); if (!t) return null
     const title = String(t.title || '').trim().toLowerCase()
-    if (!/settlement\s*check\s*(received|deposited)\??/.test(title)) return t
+    if (!/settlement\s*check\s*received\??/.test(title)) return t
     const type = String(checkType || '').trim(); if (!type) return t
     t.meta ||= {}; t.meta.settlementChecks ||= []
     if (!t.meta.settlementChecks.includes(type)) t.meta.settlementChecks.push(type)
@@ -879,7 +1128,7 @@ export async function removeSettlementCheckType(id, phase, taskId, index, actor 
     const p = Number(phase); if (![1,2,3,4,5].includes(p)) return null
     const t = (c.phaseTasks[p] || []).find(t => Number(t.id) === Number(taskId)); if (!t) return null
     const title = String(t.title || '').trim().toLowerCase()
-    if (!/settlement\s*check\s*(received|deposited)\??/.test(title)) return t
+    if (!/settlement\s*check\s*received\??/.test(title)) return t
     const idx = Number(index)
     if (Array.isArray(t.meta?.settlementChecks) && idx >= 0 && idx < t.meta.settlementChecks.length) {
       const [removed] = t.meta.settlementChecks.splice(idx, 1)
@@ -889,7 +1138,6 @@ export async function removeSettlementCheckType(id, phase, taskId, index, actor 
     return t
   })
 }
-
 /* ========================= Providers ========================= */
 async function ensureProviders(data) { if (!Array.isArray(data.providers)) data.providers = [] }
 export async function listProviders(category = null) {
@@ -925,13 +1173,11 @@ export async function deleteProvider(id, actor = 'system') {
     return { ok:true, removed:1 }
   })
 }
-
 /* ---------- Admin migration: move 'Incident Reports' from Phase 2 to Phase 1 ---------- */
 export async function migrateIncidentReportsToPhase1(actor = 'system') {
   return db.tx(async (data) => {
     let movedCases = 0, movedTasks = 0
     if (!data || !Array.isArray(data.cases)) return { ok: true, movedCases, movedTasks }
-
     for (const c of data.cases) {
       try {
         ensurePhaseTasks(c)
@@ -943,15 +1189,12 @@ export async function migrateIncidentReportsToPhase1(actor = 'system') {
           if (t && titleMatchesIncident(t.title)) toMoveIdx.push(i)
         }
         if (!toMoveIdx.length) continue
-
         c.phaseTasks[1] ||= []
         let caseMoved = 0
-
         for (let k = 0; k < toMoveIdx.length; k++) {
           const idx = toMoveIdx[k] - k
           const [srcTask] = p2.splice(idx, 1)
           const dstExisting = (c.phaseTasks[1] || []).find(t => titleMatchesIncident(t.title))
-
           if (!dstExisting) {
             c.phaseTasks[1].push(srcTask)
             caseMoved++; movedTasks++
@@ -976,7 +1219,6 @@ export async function migrateIncidentReportsToPhase1(actor = 'system') {
             recordAuditUnsafe(data, { type:'task.mergePhaseMove', caseId: c.id, from: 2, to: 1, mergedFromTaskId: srcTask.id, intoTaskId: dstExisting.id, title: dstExisting.title, actor })
           }
         }
-
         if (caseMoved) {
           movedCases++
           recalcPhasesFromTasks(c)
@@ -985,36 +1227,28 @@ export async function migrateIncidentReportsToPhase1(actor = 'system') {
         console.error('[migrateIncidentReportsToPhase1] case error:', e)
       }
     }
-
     return { ok: true, movedCases, movedTasks }
   })
 }
-
 // --- BEGIN: Litigation migration helper (Phase 3 -> 5) ---
 export async function migratePhase3To5OnLitigation(caseId, actor = 'system') {
   const _db = db
-
   return _db.tx(async (data) => {
     const cases = Array.isArray(data.cases) ? data.cases : [];
     const c = cases.find(x => String(x.id) === String(caseId));
     if (!c) return { ok: false, reason: 'not_found' };
-
     c.phaseTasks ||= { 1:[], 2:[], 3:[], 4:[], 5:[] };
     for (const k of [1,2,3,4,5]) if (!Array.isArray(c.phaseTasks[k])) c.phaseTasks[k] = [];
-
     const lit = String(c.litigationStatus || '').toLowerCase();
     if (lit != 'litigation') return { ok: true, skipped: 'not_litigation' };
     if (c.__dsMigratedV1 === true) return { ok: true, skipped: 'already_migrated' };
-
     const phase3 = c.phaseTasks[3] || [];
     const phase5 = c.phaseTasks[5] || [];
-
     if (!phase3.length) {
       c.__dsMigratedV1 = true;
       recordAuditUnsafe?.(data, { type: 'migration.phase3to5', actor, meta: { moved: 0 } });
       return { ok: true, moved: 0 };
     }
-
     const seen = new Set(
       phase5.map(t => (t?.id != null ? `id:${t.id}` : `title:${String(t?.title||'').toLowerCase().trim()}`))
     );
@@ -1027,11 +1261,9 @@ export async function migratePhase3To5OnLitigation(caseId, actor = 'system') {
         moved++;
       }
     }
-
     c.phaseTasks[5] = phase5;
     c.phaseTasks[3] = [];
     c.__dsMigratedV1 = true;
-
     recordAuditUnsafe?.(data, { type: 'migration.phase3to5', actor, meta: { moved } });
     return { ok: true, moved };
   });
@@ -1138,6 +1370,141 @@ export async function replacePhase2TasksWithSelection(caseId, titles, chosenSubt
     if (opts?.markConfigured) (c.flags ||= {}).phase2Configured = true
 
     recalcPhasesFromTasks(c)
+
+    return { ok: true, caseId: c.id, before, after: newTasks.length }
+  })
+}
+
+/* ========================= Phase 3 Litigation Template Helpers ========================= */
+function __p3_lit_normKey(title) {
+  return 'title:' + String(title || '').toLowerCase().trim().replace(/\s+/g, ' ')
+}
+
+export function phase3LitTemplate() {
+  try {
+    if (P3_LIT && Array.isArray(P3_LIT.tasks)) {
+      const out = []
+      for (const it of P3_LIT.tasks) {
+        const title = typeof it?.title === 'string' ? it.title.trim() : ''
+        if (!title) continue
+        const subtasks = (Array.isArray(it?.children) ? it.children : [])
+          .map(s => {
+            if (typeof s === 'string') return { title: s.trim(), grandchildren: [] }
+            if (typeof s?.title === 'string') {
+              return {
+                title: s.title.trim(),
+                grandchildren: Array.isArray(s.children) ? s.children.map(g => typeof g === 'string' ? g.trim() : '') : []
+              }
+            }
+            return null
+          })
+          .filter(Boolean)
+        out.push({ title, subtasks })
+      }
+      return out
+    }
+  } catch (e) {}
+  return []
+}
+
+export function phase3LitTemplateMap() {
+  const map = new Map()
+  try {
+    for (const t of tpl) {
+      if (t.title) {
+        const key = __p3_lit_normKey(t.title)
+        if (!map.has(key)) map.set(key, { title: t.title, subtasks: [...t.subtasks] })
+      }
+    }
+  } catch (e) {}
+  return map
+}
+
+export async function replacePhase3LitTasksWithSelection(caseId, titles, chosenSubtasksMap = {}, opts = {}) {
+  const picked = Array.from(new Set(
+    (Array.isArray(titles) ? titles : [])
+      .map(t => String(t || '').trim())
+      .filter(Boolean)
+  ))
+
+  return db.tx(async (data) => {
+    const c = data.cases.find(x => String(x.id) === String(caseId))
+    if (!c) throw new Error('case_not_found')
+
+    if (String(c.litigationStatus || '').toLowerCase() !== 'litigation') {
+      throw new Error('case_not_in_litigation')
+    }
+
+    ensurePhaseTasks(c)
+
+    const existingByKey = new Map()
+    for (const t of (c.phaseTasks[3] || [])) {
+      const key = __p3_lit_normKey(t?.title)
+      if (key && !existingByKey.has(key)) existingByKey.set(key, t)
+    }
+
+    const tplMap = phase3LitTemplateMap()
+    const newTasks = []
+    const seen = new Set()
+
+    for (const title of picked) {
+      const key = __p3_lit_normKey(title)
+      if (seen.has(key)) continue
+      seen.add(key)
+
+      let template = tplMap.get(key) || (existingByKey.get(key) ? {
+        title: existingByKey.get(key).title,
+        subtasks: (existingByKey.get(key).children || []).map(ch => ({
+          title: ch.title,
+          grandchildren: (ch.children || []).map(g => g.title || '')
+        }))
+      } : { title, subtasks: [] })
+
+      const chosen = chosenSubtasksMap[key] || chosenSubtasksMap[title]
+      if (Array.isArray(chosen) && chosen.length > 0) {
+        const wanted = new Set(chosen.map(s => String(s).trim().toLowerCase()))
+        template.subtasks = template.subtasks.filter(st => wanted.has(String(st.title).trim().toLowerCase()))
+      }
+
+      const taskObj = {
+        id: nextTaskId(c.phaseTasks[3] || []),
+        title: template.title,
+        done: false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      }
+
+      if (template.subtasks.length > 0) {
+        taskObj.children = template.subtasks.map((st, i) => {
+          const sub = {
+            id: i + 1,
+            title: st.title,
+            done: false,
+            createdAt: taskObj.createdAt,
+            updatedAt: taskObj.updatedAt
+          }
+          if (st.grandchildren && st.grandchildren.length > 0) {
+            sub.children = st.grandchildren.map((g, j) => ({
+              id: j + 1,
+              title: g,
+              done: false,
+              createdAt: taskObj.createdAt,
+              updatedAt: taskObj.updatedAt
+            }))
+          }
+          return sub
+        })
+      }
+      newTasks.push(taskObj)
+    }
+
+    const before = c.phaseTasks[3]?.length || 0
+    c.phaseTasks[3] = newTasks
+    if (opts?.markConfigured) (c.flags ||= {}).phase3LitConfigured = true
+
+    recalcPhasesFromTasks(c)
+
+    recordAuditUnsafe(data, { type: 'phase3_lit.template_replace', actor: 'user', meta: { before, after: newTasks.length } })
 
     return { ok: true, caseId: c.id, before, after: newTasks.length }
   })

@@ -53,6 +53,16 @@ function requireAuth(req, res, next) {
   return res.redirect('/login')
 }
 
+
+function blockWritesForViewOnly(req, res, next) {
+  const role = String(req.session?.user?.role || 'admin').toLowerCase()
+  const safe = ['GET', 'HEAD', 'OPTIONS'].includes(req.method)
+  if (safe || role === 'admin') return next()
+  if ((req.get('Accept') || '').includes('application/json')) return res.status(403).json({ ok: false, error: 'read_only' })
+  return res.status(403).send('Read-only account. Changes are not allowed.')
+}
+
+
 // Public routes
 app.get('/login', (_req, res) => {
   res.render('login', { error: null })
@@ -65,7 +75,7 @@ app.post('/login', async (req, res) => {
     if (!user) return res.status(401).render('login', { error: 'Invalid credentials' })
     const ok = bcrypt.compareSync(String(password || ''), user.password_hash)
     if (!ok) return res.status(401).render('login', { error: 'Invalid credentials' })
-    req.session.user = { id: user.id, email: user.email }
+    req.session.user = { id: user.id, email: user.email, role: user.role || 'admin' }
     res.redirect('/')
   } catch (e) {
     console.error('Login error:', e)
@@ -81,8 +91,8 @@ app.post('/logout', (req, res) => {
 app.get('/healthz', (_req, res) => res.status(200).send('ok'))
 
 // Protected routes
-app.use('/', requireAuth, dashboardRouter)
-app.use('/cases', requireAuth, casesRouter)
+app.use('/', requireAuth, blockWritesForViewOnly, dashboardRouter)
+app.use('/cases', requireAuth, blockWritesForViewOnly, casesRouter)
 
 // 404
 app.use((req, res) => res.status(404).send('Not found'))

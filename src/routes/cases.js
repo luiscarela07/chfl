@@ -7,7 +7,11 @@ import { // Cases
   addPhaseSubtask, togglePhaseSubtask, editPhaseSubtaskTitle, deletePhaseSubtask, undoDeletePhaseSubtask, // Bulk/helpers (keep exported even if not used directly here)
   reorderPhaseTasks, setPhaseTasksStatus, setPhaseSubtasksStatus, setPhaseSubtasksStatusExact, // Migrations
   migrateIncidentReportsToPhase1, // Providers (category-aware)
-  listProviders, addProvider, deleteProvider, replacePhase2TasksWithSelection, phase2Template } from '../models.js';
+  listProviders, addProvider, deleteProvider, replacePhase2TasksWithSelection, phase2Template,
+  togglePhaseGrandchild,
+  phase3LitTemplate,
+  replacePhase3LitTasksWithSelection
+} from '../models.js';
 import { migratePhase3To5OnLitigation } from '../models.js';
 
 const router = Router();
@@ -99,6 +103,7 @@ router.get('/:id', async (req, res) => {
 
     res.render('case-detail', {
       presetsPhase2: phase2Template(globalThis || {}),
+      presetsPhase3Lit: phase3LitTemplate(),
       item,
       phaseNames: phaseNamesForCase(item),
       providers
@@ -152,6 +157,8 @@ router.post('/:id/litigation', async (req, res) => {
       String(req.body.litigation || 'pre').toLowerCase(),
       actor(req)
     );
+    const next = String(req.query.next || '').trim();
+    if (next && next.startsWith('/')) return res.redirect(next);
     res.redirect(`/cases/${req.params.id}`);
   } catch (e) {
     console.error('[POST /cases/:id/litigation] error:', e);
@@ -250,6 +257,24 @@ router.post('/:id/phase/:phase/tasks/:taskId/subtasks/:subId/toggle', async (req
     console.error('[POST togglePhaseSubtask] error:', e);
     if (wantsJson(req)) return res.status(400).json({ ok: false });
     res.status(400).send('Could not toggle subtask. Please retry.');
+  }
+});
+
+router.post('/:id/phase/:phase/tasks/:taskId/subtasks/:subId/children/:childId/toggle', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10)
+    const phase = parseInt(req.params.phase, 10)
+    const taskId = parseInt(req.params.taskId, 10)
+    const subId = parseInt(req.params.subId, 10)
+    const childId = parseInt(req.params.childId, 10)
+
+    const actor = req?.session?.user?.email || 'user'
+    const out = await togglePhaseGrandchild(id, phase, taskId, subId, childId, actor)
+    if (!out) return res.status(404).json({ ok: false })
+    res.json(out)
+  } catch (e) {
+    console.error('[POST grandchild toggle] error:', e)
+    res.status(500).json({ ok: false })
   }
 });
 
@@ -402,6 +427,32 @@ router.post('/:id/phase2/choose', async (req, res, next) => {
     res.redirect(`/cases/${caseId}`);
   } catch (err) { next(err); }
 });
+
+
+/* ---------- Choose applicable Phase-3 (Litigation) tasks (titles + chosen subtasks) ---------- */
+router.post('/:id/phase3-lit/choose', async (req, res, next) => {
+  try {
+    const caseId = req.params.id;
+
+    let titles = [];
+    if (Array.isArray(req.body.titles)) titles = req.body.titles;
+    else if (Array.isArray(req.body['titles[]'])) titles = req.body['titles[]'];
+    else if (typeof req.body.titles === 'string') {
+      titles = req.body.titles.split(',').map(s => s.trim()).filter(Boolean);
+    }
+
+    const subMap = {};
+    for (const k of Object.keys(req.body || {})) {
+      const m = k.match(/^subtasks\[(.+)\]$/);
+      if (m) subMap[m[1]] = req.body[k];
+    }
+
+    const result = await replacePhase3LitTasksWithSelection(caseId, titles, subMap, { markConfigured: true });
+    if ((req.get('Accept') || '').includes('application/json')) return res.json({ ok: true, ...result });
+    res.redirect(`/cases/${caseId}`);
+  } catch (err) { next(err); }
+});
+
 
 
 // IMPORTANT: export AFTER all routes are defined
