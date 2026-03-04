@@ -190,6 +190,25 @@ router.post('/:id/phase/:phase/tasks', async (req, res) => {
   }
 });
 
+router.post('/:id/phase/:phase/tasks/reorder', async (req, res) => {
+  try {
+    const caseId = parseInt(req.params.id, 10);
+    const phase = parseInt(req.params.phase, 10);
+    let order = req.body.order;
+    if (typeof order === 'undefined') order = req.body['order[]'];
+    if (!Array.isArray(order)) order = typeof order === 'string' ? [order] : [];
+    order = order.map(v => parseInt(v, 10)).filter(Number.isFinite);
+
+    await reorderPhaseTasks(caseId, phase, order, actor(req));
+    if (wantsJson(req)) return res.json({ ok: true });
+    res.redirect(`/cases/${caseId}#phase-${phase}`);
+  } catch (e) {
+    console.error('[POST reorderPhaseTasks] error:', e);
+    if (wantsJson(req)) return res.status(400).json({ ok: false });
+    res.status(400).send('Could not reorder tasks. Please retry.');
+  }
+});
+
 router.post('/:id/phase/:phase/tasks/:taskId/toggle', async (req, res) => {
   try {
     await togglePhaseTask(+req.params.id, +req.params.phase, +req.params.taskId, actor(req));

@@ -45,6 +45,9 @@
   section.phase{ background:#fff; border:1px solid #e5e7eb !important; border-radius:8px !important; overflow:hidden; }
   .btn-icon{ border:1px solid #e5e7eb; border-radius:6px; padding:2px 6px; font-size:12px; background:#fff; cursor:pointer }
   .btn-icon[disabled]{ opacity:.4; cursor:not-allowed }
+  .phase-actions{ display:none; margin-left:auto; align-items:center; gap:.25rem }
+  section.phase[data-customizing="true"] .phase-actions{ display:inline-flex }
+  section.phase[data-customizing="true"] [data-customize-phase]{ color:#0f766e; font-weight:600 }
   @media (max-width:600px){ .ring-row{ flex-direction:column; gap:.75rem } .row{ padding:.6rem .5rem } }
 </style>
 
@@ -99,13 +102,16 @@
         <div class="phase-t" style="font-weight:600;color:#111827">
           <span>Phase <%=p%> - <%= phaseMap[p] %></span>
         </div>
-        <button type="button" class="text-sm underline" data-toggle data-phase="<%=p%>" aria-controls="phase-panel-<%=p%>" aria-expanded="false">Expand</button>
+        <div class="flex items-center gap-3">
+          <button type="button" class="text-sm underline" data-customize-phase="<%=p%>">Customize</button>
+          <button type="button" class="text-sm underline" data-toggle data-phase="<%=p%>" aria-controls="phase-panel-<%=p%>" aria-expanded="false">Expand</button>
+        </div>
       </header>
 
       <div id="phase-panel-<%=p%>" class="panel" hidden data-open="false">
         <ul>
           <% (arr||[]).forEach(t=>{ const tip = `${t.title}: ${t.done?'Complete':'Not Complete'}`; %>
-            <li class="row" data-task data-taskid="<%=t.id%>" data-phase="<%=p%>">
+            <li class="row" data-task data-taskid="<%=t.id%>" data-phase="<%=p%>" data-title="<%= t.title %>">
               <input type="checkbox" class="js-task-toggle mt-0.5"
                      data-url="/cases/<%= c.id %>/phase/<%=p%>/tasks/<%=t.id%>/toggle"
                      aria-label="Toggle complete" <%= t.done?'checked':'' %>>
@@ -200,6 +206,12 @@
                 <% } } %>
               </div>
 
+              <div class="phase-actions">
+                <button type="button" class="btn-icon js-move-task" data-dir="up" title="Move up">↑</button>
+                <button type="button" class="btn-icon js-move-task" data-dir="down" title="Move down">↓</button>
+                <button type="button" class="btn-icon js-edit-item" data-kind="task" title="Edit task">Edit</button>
+              </div>
+
               <form class="js-del" method="post"
                     action="/cases/<%= c.id %>/phase/<%=p%>/tasks/<%=t.id%>/delete"
                     data-undo="/cases/<%= c.id %>/phase/<%=p%>/tasks/<%=t.id%>/undo-delete">
@@ -210,7 +222,7 @@
             <% if (Array.isArray(t.children) && t.children.length){ %>
               <ul class="subs">
                 <% t.children.forEach(st=>{ if (st.deleted_at) return; const stip = `${st.title}: ${st.done?'Complete':'Not Complete'}`; %>
-                  <li class="row" data-subtask data-taskid="<%=t.id%>" data-subid="<%=st.id%>" data-phase="<%=p%>">
+                  <li class="row" data-subtask data-taskid="<%=t.id%>" data-subid="<%=st.id%>" data-phase="<%=p%>" data-title="<%= st.title %>">
                     <input type="checkbox" class="js-sub-toggle mt-0.5"
                            data-url="/cases/<%= c.id %>/phase/<%=p%>/tasks/<%=t.id%>/subtasks/<%=st.id%>/toggle"
                            aria-label="Toggle subtask" <%= st.done?'checked':'' %>>
@@ -247,6 +259,10 @@
                                   data-cat="<%= cat %>">?</button>
                         </div>
                       <% } } %>
+                    </div>
+
+                    <div class="phase-actions">
+                      <button type="button" class="btn-icon js-edit-item" data-kind="subtask" title="Edit subtask">Edit</button>
                     </div>
 
                     <form class="js-del" method="post"
@@ -387,6 +403,84 @@
       });
     });
   })();
+
+  /* ===== Per-phase customize (all phases) ===== */
+  document.addEventListener('click', async (e) => {
+    const toggle = e.target.closest('[data-customize-phase]');
+    if (toggle) {
+      const phase = Number(toggle.getAttribute('data-customize-phase') || '0');
+      const section = document.getElementById(`phase-${phase}`);
+      if (!section) return;
+      const on = section.getAttribute('data-customizing') === 'true';
+      section.setAttribute('data-customizing', on ? 'false' : 'true');
+      toggle.textContent = on ? 'Customize' : 'Done';
+      const expandBtn = section.querySelector('[data-toggle]');
+      if (expandBtn && expandBtn.textContent.trim() === 'Expand') expandBtn.click();
+      return;
+    }
+
+    const moveBtn = e.target.closest('.js-move-task');
+    if (moveBtn) {
+      const row = moveBtn.closest('[data-task]');
+      if (!row) return;
+      const phase = Number(row.getAttribute('data-phase') || '0');
+      const panel = document.getElementById(`phase-panel-${phase}`);
+      const list = panel?.querySelector('ul');
+      if (!list) return;
+      const dir = moveBtn.getAttribute('data-dir');
+      const siblings = Array.from(list.querySelectorAll(':scope > li[data-task]'));
+      const idx = siblings.indexOf(row);
+      if (idx === -1) return;
+      const swapIdx = dir === 'up' ? idx - 1 : idx + 1;
+      if (swapIdx < 0 || swapIdx >= siblings.length) return;
+      const ref = siblings[swapIdx];
+      if (dir === 'up') list.insertBefore(row, ref);
+      else list.insertBefore(ref, row);
+
+      const order = Array.from(list.querySelectorAll(':scope > li[data-task]')).map(li => Number(li.getAttribute('data-taskid'))).filter(Boolean);
+      const caseId = <%= Number(c.id) %>;
+      const body = new URLSearchParams();
+      order.forEach(id => body.append('order[]', String(id)));
+      const res = await fetch(`/cases/${caseId}/phase/${phase}/tasks/reorder`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' },
+        body: body.toString()
+      });
+      if (!res.ok) {
+        alert('Could not reorder tasks.');
+        location.reload();
+      }
+      return;
+    }
+
+    const editBtn = e.target.closest('.js-edit-item');
+    if (editBtn) {
+      const row = editBtn.closest('[data-task],[data-subtask]');
+      if (!row) return;
+      const caseId = <%= Number(c.id) %>;
+      const phase = Number(row.getAttribute('data-phase') || '0');
+      const taskId = Number(row.getAttribute('data-taskid') || '0');
+      const subId = row.hasAttribute('data-subid') ? Number(row.getAttribute('data-subid')) : null;
+      const current = String(row.getAttribute('data-title') || '').trim();
+      const next = prompt('Edit title', current);
+      if (next === null) return;
+      const title = String(next).trim();
+      if (!title || title === current) return;
+      const url = subId
+        ? `/cases/${caseId}/phase/${phase}/tasks/${taskId}/subtasks/${subId}/edit`
+        : `/cases/${caseId}/phase/${phase}/tasks/${taskId}/edit`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8', 'Accept':'application/json' },
+        body: new URLSearchParams({ title }).toString()
+      });
+      if (!res.ok) { alert('Could not update title.'); return; }
+      row.setAttribute('data-title', title);
+      const titleNode = row.querySelector('.title')?.childNodes?.[0];
+      if (titleNode) titleNode.nodeValue = title;
+      recalcOpenForPhase(phase);
+    }
+  });
 
   /* ===== Provider gating on completion ===== */
   document.addEventListener('change', async (e)=>{
