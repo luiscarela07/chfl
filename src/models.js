@@ -418,8 +418,7 @@ function seedPhase4TrialIfNeeded(c, data, actor = 'system') {
   ensurePhaseTasks(c)
   c.flags ||= {}
   const isLitigation = String(c.litigationStatus || '').toLowerCase() === 'litigation'
-  const atTrialPhase = Number(c.phase || 1) >= 4
-  if (!isLitigation || !atTrialPhase || c.flags.phase4TrialSeeded) return
+  if (!isLitigation || c.flags.phase4TrialSeeded) return
 
   c.phaseTasks[4] ||= []
   if (c.phaseTasks[4].length > 0) {
