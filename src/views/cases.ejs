@@ -12,6 +12,12 @@ const _activeFilters = (typeof activeFilters !== 'undefined' && activeFilters) ?
 const _sort = (typeof sort !== 'undefined' && sort) ? sort : 'phases'
 const _dir  = (typeof dir  !== 'undefined' && dir ) ? dir  : 'desc'
 const _lit  = (typeof lit  !== 'undefined' && lit ) ? lit  : 'any'
+
+function displayName(c) {
+  const first = (c && c.firstName) ? String(c.firstName).trim() : ''
+  const last = (c && c.lastName) ? String(c.lastName).trim() : ''
+  return [first, last].filter(Boolean).join(' ') || c.clientName || ''
+}
 %>
 
 <% if (phaseOpen && [1,2,3,4,5].includes(phaseOpen)) { %>
@@ -40,7 +46,7 @@ const _lit  = (typeof lit  !== 'undefined' && lit ) ? lit  : 'any'
       <tbody>
         <% rows.forEach(c => { %>
           <tr class="border-t align-top">
-            <td class="p-2 w-48"><a href="/cases/<%= c.id %>" class="hover:underline font-medium"><%= c.clientName %></a></td>
+            <td class="p-2 w-48"><a href="/cases/<%= c.id %>" class="hover:underline font-medium"><%= displayName(c) %></a></td>
             <td class="p-2">
               <% if (!c.openTasks.length) { %>
                 <span class="text-gray-500">No open tasks.</span>
@@ -149,18 +155,32 @@ const _lit  = (typeof lit  !== 'undefined' && lit ) ? lit  : 'any'
              const maxP = (lit==='litigation') ? 5 : 3
         %>
           <tr class="border-t">
-            <td class="p-2"><a href="/cases/<%= c.id %>" class="hover:underline font-medium"><%= c.clientName %></a></td>
+            <td class="p-2"><a href="/cases/<%= c.id %>" class="hover:underline font-medium"><%= displayName(c) %></a></td>
             <td class="p-2"><%= c.typeOfCase || '—' %></td>
             <td class="p-2"><%= c.dateOfIncident || '—' %></td>
             <td class="p-2">
-              <div class="flex items-center gap-1" aria-label="Phase status icons">
+              <div class="flex items-center gap-1" aria-label="Phase status rings">
                 <% for (let p=1;p<=maxP;p++){
                      const ok = !!P[p]
-                     const src = ok ? '/assets/icons/chlf-status-tree-green.svg' : '/assets/icons/chlf-status-tree-red.svg'
                      const tip = `Phase ${p}: ${ok?'Complete':'Not Complete'}`
+                     const r = 6
+                     const cLen = 2 * Math.PI * r
+                     const doneLen = ok ? cLen : 0
+                     const openLen = ok ? 0 : cLen
                 %>
-                  <% const fill = ok ? '#16a34a' : '#ef4444'; %>
-<span class="inline-block align-middle rounded-full" title="<%= tip %>" aria-label="<%= tip %>" style="width:16px;height:16px;min-width:16px;min-height:16px;background-color:<%= fill %>;border:1px solid #d1d5db;"></span>
+                  <span title="<%= tip %>" aria-label="<%= tip %>" class="inline-block align-middle" style="width:18px;height:18px;min-width:18px;min-height:18px;">
+                    <svg viewBox="0 0 20 20" class="block" role="img" aria-hidden="true">
+                      <circle cx="10" cy="10" r="<%= r %>" fill="none" stroke="#e5e7eb" stroke-width="3" />
+                      <% if (openLen > 0) { %>
+                        <circle cx="10" cy="10" r="<%= r %>" fill="none" stroke="#f87171" stroke-width="3" stroke-linecap="round"
+                                stroke-dasharray="<%= openLen %> <%= cLen %>" transform="rotate(-90 10 10)" />
+                      <% } %>
+                      <% if (doneLen > 0) { %>
+                        <circle cx="10" cy="10" r="<%= r %>" fill="none" stroke="#16a34a" stroke-width="3" stroke-linecap="round"
+                                stroke-dasharray="<%= doneLen %> <%= cLen %>" transform="rotate(-90 10 10)" />
+                      <% } %>
+                    </svg>
+                  </span>
 <% } %>
               </div>
             </td>
@@ -189,7 +209,7 @@ const _lit  = (typeof lit  !== 'undefined' && lit ) ? lit  : 'any'
     <% rows.forEach(c => { const lit = (c.litigationStatus || 'pre'); const maxP = lit==='litigation'?5:3; %>
       <div class="bg-white rounded-lg shadow border p-3">
         <div class="flex items-center justify-between">
-          <a href="/cases/<%= c.id %>" class="font-semibold"><%= c.clientName %></a>
+          <a href="/cases/<%= c.id %>" class="font-semibold"><%= displayName(c) %></a>
           <a class="underline text-sm" href="/cases/<%= c.id %>/edit">Edit</a>
         </div>
         <div class="text-xs text-gray-600 mt-1">
@@ -198,12 +218,26 @@ const _lit  = (typeof lit  !== 'undefined' && lit ) ? lit  : 'any'
           <div><strong>Litigation:</strong> <%= lit==='litigation'?'Litigation':'Pre' %></div>
           <div><strong>Due:</strong> <%= c.dueDate || '—' %></div>
         </div>
-        <div class="flex items-center gap-1 mt-2">
+        <div class="flex items-center gap-1 mt-2" aria-label="Phase status rings">
           <% for (let p=1;p<=maxP;p++){ const ok = !!(c.phases||{})[p];
-               const src = ok ? '/assets/icons/chlf-status-tree-green.svg' : '/assets/icons/chlf-status-tree-red.svg';
-               const tip = `Phase ${p}: ${ok?'Complete':'Not Complete'}`; %>
-            <% const fill = ok ? '#16a34a' : '#ef4444'; %>
-<span class="inline-block align-middle rounded-full" title="<%= tip %>" aria-label="<%= tip %>" style="width:16px;height:16px;min-width:16px;min-height:16px;background-color:<%= fill %>;border:1px solid #d1d5db;"></span>
+               const tip = `Phase ${p}: ${ok?'Complete':'Not Complete'}`;
+               const r = 6;
+               const cLen = 2 * Math.PI * r;
+               const doneLen = ok ? cLen : 0;
+               const openLen = ok ? 0 : cLen; %>
+            <span title="<%= tip %>" aria-label="<%= tip %>" class="inline-block align-middle" style="width:18px;height:18px;min-width:18px;min-height:18px;">
+              <svg viewBox="0 0 20 20" class="block" role="img" aria-hidden="true">
+                <circle cx="10" cy="10" r="<%= r %>" fill="none" stroke="#e5e7eb" stroke-width="3" />
+                <% if (openLen > 0) { %>
+                  <circle cx="10" cy="10" r="<%= r %>" fill="none" stroke="#f87171" stroke-width="3" stroke-linecap="round"
+                          stroke-dasharray="<%= openLen %> <%= cLen %>" transform="rotate(-90 10 10)" />
+                <% } %>
+                <% if (doneLen > 0) { %>
+                  <circle cx="10" cy="10" r="<%= r %>" fill="none" stroke="#16a34a" stroke-width="3" stroke-linecap="round"
+                          stroke-dasharray="<%= doneLen %> <%= cLen %>" transform="rotate(-90 10 10)" />
+                <% } %>
+              </svg>
+            </span>
 <% } %>
         </div>
       </div>
