@@ -11,10 +11,39 @@ export const db = createJsonDb(config.dbPath)
 /* ========================= Core helpers ========================= */
 function ensureCaseShape(c) {
   if (!c) return c
+  if (!c.firstName || !c.lastName) {
+    const raw = String(c.clientName || c.title || '').trim()
+    const parts = raw.split(/\s+/).filter(Boolean)
+    if (!c.firstName) c.firstName = parts[0] || ''
+    if (!c.lastName) c.lastName = parts.slice(1).join(' ')
+  }
+  c.clientName = [c.firstName, c.lastName].filter(Boolean).join(' ').trim() || c.clientName || c.title || 'Unnamed Client'
+  c.title = c.clientName
   if (!c.phases) c.phases = { 1:false, 2:false, 3:false, 4:false, 5:false }
   if (!c.phaseTasks) c.phaseTasks = { 1:[], 2:[], 3:[], 4:[], 5:[] }
   for (let p = 1; p <= 5; p++) if (!Array.isArray(c.phaseTasks[p])) c.phaseTasks[p] = []
   return c
+}
+
+function normalizeClientNameParts(payload = {}, existing = {}) {
+  const incomingFirst = payload.firstName !== undefined ? String(payload.firstName || '').trim() : undefined
+  const incomingLast = payload.lastName !== undefined ? String(payload.lastName || '').trim() : undefined
+  const incomingFull = payload.clientName !== undefined
+    ? String(payload.clientName || '').trim()
+    : (payload.title !== undefined ? String(payload.title || '').trim() : '')
+
+  let firstName = incomingFirst !== undefined ? incomingFirst : String(existing.firstName || '').trim()
+  let lastName = incomingLast !== undefined ? incomingLast : String(existing.lastName || '').trim()
+
+  if ((!firstName && !lastName) && incomingFull) {
+    const parts = incomingFull.split(/\s+/).filter(Boolean)
+    firstName = parts[0] || ''
+    lastName = parts.slice(1).join(' ')
+  }
+
+  if (!firstName) firstName = 'Unnamed'
+  const clientName = [firstName, lastName].filter(Boolean).join(' ').trim() || 'Unnamed Client'
+  return { firstName, lastName, clientName }
 }
 
 function recordAuditUnsafe(data, entry) {
@@ -536,7 +565,7 @@ function countPhaseTotals(caseObj, phase) {
 }
 export async function getDashboardData() {
   const data = await db.load()
-  for (const c of data.cases) { ensurePhaseTasks(c); c.litigationStatus ||= 'pre' }
+  for (const c of data.cases) { ensureCaseShape(c); ensurePhaseTasks(c); c.litigationStatus ||= 'pre' }
   const totalCases = data.cases.length
   const openTasksByPhase = { 1:0, 2:0, 3:0, 4:0, 5:0 }
   const totalTasksByPhase = { 1:0, 2:0, 3:0, 4:0, 5:0 }
@@ -561,6 +590,7 @@ export async function getOpenTasksByPhase(phase) {
   const out = []
 
   for (const c of (Array.isArray(data.cases) ? data.cases : [])) {
+    ensureCaseShape(c)
     ensurePhaseTasks(c)
     c.litigationStatus ||= 'pre'
 
@@ -590,6 +620,8 @@ export async function getOpenTasksByPhase(phase) {
     if (openTasks.length) {
       out.push({
         caseId: c.id,
+        firstName: c.firstName || '',
+        lastName: c.lastName || '',
         clientName: c.clientName || c.title || `Case ${c.id}`,
         litigationStatus: c.litigationStatus,
         openTasks
@@ -660,7 +692,10 @@ export async function listCases(q = '') {
   const data = await db.load()
   const needle = String(q || '').toLowerCase()
   return data.cases
-    .filter(c => !needle || String(c.clientName || '').toLowerCase().includes(needle))
+    .filter(c => {
+      ensureCaseShape(c)
+      return !needle || String(c.clientName || '').toLowerCase().includes(needle)
+    })
     .sort((a,b) => b.id - a.id)
 
 
@@ -670,6 +705,7 @@ export async function getCase(id) {
     const c = data.cases.find(x => x.id === id) || null
     if (!c) return null
 
+    ensureCaseShape(c)
     ensurePhaseTasks(c)
     c.litigationStatus ||= 'pre'
 
@@ -684,10 +720,10 @@ export async function getCase(id) {
 export async function createCase(payload) {
   return db.tx(async (data) => {
     const id = (data.cases.reduce((m, c) => Math.max(m, c.id), 0) || 0) + 1
-    const clientName = String(payload.clientName || payload.title || 'Unnamed Client').trim() || 'Unnamed Client'
+    const { firstName, lastName, clientName } = normalizeClientNameParts(payload)
     const now = new Date().toISOString()
     const c = {
-      id, title: clientName, clientName,
+      id, title: clientName, clientName, firstName, lastName,
       dateOfIncident: payload.dateOfIncident || null,
       typeOfCase: payload.typeOfCase || null,
       status: payload.status || 'Open',
@@ -713,6 +749,8 @@ export async function updateCase(id, payload) {
     ensureCaseShape(c)
     const before = {
       clientName: c.clientName,
+      firstName: c.firstName,
+      lastName: c.lastName,
       phase: c.phase,
       dueDate: c.dueDate,
       description: c.description,
@@ -720,12 +758,13 @@ export async function updateCase(id, payload) {
       dateOfIncident: c.dateOfIncident,
       typeOfCase: c.typeOfCase
     }
-    if (payload.clientName !== undefined) {
-      const name = String(payload.clientName || '').trim()
-      if (name) c.clientName = name
+    if (payload.firstName !== undefined || payload.lastName !== undefined || payload.clientName !== undefined) {
+      const next = normalizeClientNameParts(payload, c)
+      c.firstName = next.firstName
+      c.lastName = next.lastName
+      c.clientName = next.clientName
     }
-    if (payload.title !== undefined && String(payload.title || '').trim()) c.title = String(payload.title).trim()
-    else c.title = c.clientName
+    c.title = c.clientName
     if (payload.phase !== undefined) c.phase = Number(payload.phase) || c.phase
     if (payload.dueDate !== undefined) c.dueDate = payload.dueDate || null
     if (payload.description !== undefined) c.description = payload.description || ''
@@ -742,6 +781,8 @@ export async function updateCase(id, payload) {
       before,
       after: {
         clientName: c.clientName,
+        firstName: c.firstName,
+        lastName: c.lastName,
         phase: c.phase,
         dueDate: c.dueDate,
         description: c.description,
