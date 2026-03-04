@@ -18,6 +18,34 @@ function displayName(c) {
   const last = (c && c.lastName) ? String(c.lastName).trim() : ''
   return [first, last].filter(Boolean).join(' ') || c.clientName || ''
 }
+
+function phaseProgress(c, p) {
+  const tasks = (((c || {}).phaseTasks || {})[p] || []).filter(t => !t.deleted_at)
+  let total = 0
+  let done = 0
+
+  tasks.forEach(t => {
+    total += 1
+    if (t.done) done += 1
+
+    ;((t.children || []).filter(st => !st.deleted_at)).forEach(st => {
+      total += 1
+      if (st.done) done += 1
+
+      ;((st.children || []).filter(gc => !gc.deleted_at)).forEach(gc => {
+        total += 1
+        if (gc.done) done += 1
+      })
+    })
+  })
+
+  if (total === 0) {
+    const phaseComplete = !!(((c || {}).phases || {})[p])
+    return { total: 1, done: phaseComplete ? 1 : 0 }
+  }
+
+  return { total, done }
+}
 %>
 
 <% if (phaseOpen && [1,2,3,4,5].includes(phaseOpen)) { %>
@@ -161,12 +189,12 @@ function displayName(c) {
             <td class="p-2">
               <div class="flex items-center gap-1" aria-label="Phase status icons">
                 <% for (let p=1;p<=maxP;p++){
-                     const ok = !!P[p]
-                     const src = ok ? '/assets/icons/chlf-status-tree-green.svg' : '/assets/icons/chlf-status-tree-red.svg'
-                     const tip = `Phase ${p}: ${ok?'Complete':'Not Complete'}`
+                     const progress = phaseProgress(c, p)
+                     const phaseComplete = !!P[p]
+                     const tip = `Phase ${p}: ${progress.done}/${progress.total} complete (${phaseComplete ? 'Complete' : 'Not Complete'})`
                 %>
-                  <img src="<%= src %>" alt="<%= tip %>" title="<%= tip %>" aria-label="<%= tip %>" class="inline-block align-middle" style="width:16px;height:16px;min-width:16px;min-height:16px;">
-<% } %>
+                  <%- include('partials/phase-status-ring', { total: progress.total, done: progress.done, title: tip, size: 20 }) %>
+                <% } %>
               </div>
             </td>
             <td class="p-2">
@@ -203,12 +231,13 @@ function displayName(c) {
           <div><strong>Litigation:</strong> <%= lit==='litigation'?'Litigation':'Pre' %></div>
           <div><strong>Due:</strong> <%= c.dueDate || '—' %></div>
         </div>
-        <div class="flex items-center gap-1 mt-2">
-          <% for (let p=1;p<=maxP;p++){ const ok = !!(c.phases||{})[p];
-               const src = ok ? '/assets/icons/chlf-status-tree-green.svg' : '/assets/icons/chlf-status-tree-red.svg';
-               const tip = `Phase ${p}: ${ok?'Complete':'Not Complete'}`; %>
-            <img src="<%= src %>" alt="<%= tip %>" title="<%= tip %>" aria-label="<%= tip %>" class="inline-block align-middle" style="width:16px;height:16px;min-width:16px;min-height:16px;">
-<% } %>
+        <div class="flex items-center gap-1 mt-2" aria-label="Phase status icons">
+          <% for (let p=1;p<=maxP;p++){
+               const progress = phaseProgress(c, p)
+               const phaseComplete = !!((c.phases || {})[p])
+               const tip = `Phase ${p}: ${progress.done}/${progress.total} complete (${phaseComplete ? 'Complete' : 'Not Complete'})` %>
+            <%- include('partials/phase-status-ring', { total: progress.total, done: progress.done, title: tip, size: 20 }) %>
+          <% } %>
         </div>
       </div>
     <% }) %>
