@@ -259,6 +259,49 @@ const P3_LIT = {
   ]
 }
 
+
+
+const P4_TRIAL = {
+  tasks: [
+    { title: 'Calendar trial date' },
+    { title: 'Advise client in writing of trial date' },
+    { title: 'Calendar docket call and pre-trial dates' },
+    { title: 'Calendar 60-day warning' },
+    {
+      title: '40-day pre-trial task group',
+      children: [
+        'Supplement discovery responses',
+        'Disclosures',
+        'Request for Production (RFP)',
+        'Interrogatories (Roggs)',
+        'Requests for Admission (RFA)'
+      ]
+    },
+    {
+      title: '30-day pre-trial task group (or date defined in the DCO)',
+      children: [
+        'File Pre-Trial Order',
+        'Witness List',
+        'Exhibit List',
+        'Jury Charge',
+        'Motions in Limine (MIL)',
+        'Deposition Excerpts'
+      ]
+    },
+    { title: 'Prepare Witness Subpoenas (as needed)' },
+    {
+      title: 'Prepare Trial Notebook',
+      children: [
+        'Plaintiff’s PTO',
+        'Defendant’s PTO',
+        'Deposition transcripts',
+        'Direct examinations',
+        'Cross examinations'
+      ]
+    },
+    { title: 'Organize and mark Exhibits' }
+  ]
+}
 function seedPhase3LitDefaults_mutate(data, c, actor = 'migration:seedPhase3LitDefaults') {
   ensurePhaseTasks(c)
   c.phaseTasks[3] ||= []
@@ -370,6 +413,47 @@ function seedPhase3Defaults(c, data) {
     }
   }
 }
+
+function seedPhase4TrialIfNeeded(c, data, actor = 'system') {
+  ensurePhaseTasks(c)
+  c.flags ||= {}
+  const isLitigation = String(c.litigationStatus || '').toLowerCase() === 'litigation'
+  const atTrialPhase = Number(c.phase || 1) >= 4
+  if (!isLitigation || !atTrialPhase || c.flags.phase4TrialSeeded) return
+
+  c.phaseTasks[4] ||= []
+  if (c.phaseTasks[4].length > 0) {
+    c.flags.phase4TrialSeeded = true
+    return
+  }
+
+  const now = new Date().toISOString()
+  let tid = 0
+  for (const group of P4_TRIAL.tasks) {
+    tid += 1
+    const task = {
+      id: tid,
+      title: String(group.title || '').trim() || `Task ${tid}`,
+      done: false,
+      createdAt: now,
+      updatedAt: now
+    }
+    if (Array.isArray(group.children) && group.children.length > 0) {
+      task.children = group.children.map((child, i) => ({
+        id: i + 1,
+        title: String(child || '').trim() || `Subtask ${i + 1}`,
+        done: false,
+        createdAt: now,
+        updatedAt: now
+      }))
+    }
+    c.phaseTasks[4].push(task)
+  }
+
+  c.flags.phase4TrialSeeded = true
+  recordAuditUnsafe?.(data, { type: 'phase4.trial.seed', caseId: c.id, actor, meta: { tasks: c.phaseTasks[4].length } })
+}
+
 /* ========================= Demand (P1 LOP sync) ========================= */
 function findP1LopTask(c) {
   ensurePhaseTasks(c)
@@ -464,7 +548,7 @@ export async function migrateAndSeed() {
       }
       if (!data.meta.migrations.includes('p004_phase_tasks+timestamps')) {
         for (const c of data.cases) {
-          ensurePhaseTasks(c); injectPhase1IfEmpty(c); seedPhase2IfEmpty(c)
+          ensurePhaseTasks(c); injectPhase1IfEmpty(c); seedPhase2IfEmpty(c); seedPhase4TrialIfNeeded(c, data, 'migration:p004')
           for (const p of [1,2,3,4,5]) {
             c.phaseTasks[p] = (c.phaseTasks[p] || []).map(t => ({
               ...t, createdAt: t.createdAt || new Date().toISOString(), updatedAt: t.updatedAt || new Date().toISOString()
@@ -483,8 +567,17 @@ export async function migrateAndSeed() {
         data.meta.migrations.push('p006_sync_p1_lop_to_p3')
       }
       if (!data.meta.migrations.includes('p007_phase3_templates')) {
-        for (const c of data.cases) { ensurePhaseTasks(c); syncP1LopToDemand_mutate(data, c); seedPhase3Defaults(c, data); recalcPhasesFromTasks(c) }
+        for (const c of data.cases) { ensurePhaseTasks(c); syncP1LopToDemand_mutate(data, c); seedPhase3Defaults(c, data); seedPhase4TrialIfNeeded(c, data, 'migration:p007'); recalcPhasesFromTasks(c) }
         data.meta.migrations.push('p007_phase3_templates')
+      }
+
+      if (!data.meta.migrations.includes('p008_phase4_trial_templates')) {
+        for (const c of data.cases) {
+          ensurePhaseTasks(c)
+          seedPhase4TrialIfNeeded(c, data, 'migration:p008')
+          recalcPhasesFromTasks(c)
+        }
+        data.meta.migrations.push('p008_phase4_trial_templates')
       }
       if (!data.meta.migrations.includes('p008_litigation_status+phase5')) {
         for (const c of data.cases) { ensurePhaseTasks(c); c.litigationStatus = ['pre','litigation'].includes(c.litigationStatus) ? c.litigationStatus : 'pre' }
@@ -712,6 +805,7 @@ export async function getCase(id) {
     if (String(c.litigationStatus).toLowerCase() === 'litigation') {
       seedPhase3LitDefaults_mutate(data, c)
     }
+    seedPhase4TrialIfNeeded(c, data, 'case.get')
 
     recalcPhasesFromTasks(c)
     return c
@@ -735,6 +829,7 @@ export async function createCase(payload) {
       description: payload.description || '', notes: [], tasks: []
     }
     injectPhase1IfEmpty(c); seedPhase2IfEmpty(c); seedPhase3Defaults(c, data)
+    seedPhase4TrialIfNeeded(c, data, payload._actor || 'system')
     syncP1LopToDemand_mutate(data, c)
     recalcPhasesFromTasks(c)
     data.cases.push(c)
@@ -774,6 +869,7 @@ export async function updateCase(id, payload) {
     }
     if (payload.dateOfIncident !== undefined) c.dateOfIncident = payload.dateOfIncident
     if (payload.typeOfCase !== undefined) c.typeOfCase = payload.typeOfCase
+    seedPhase4TrialIfNeeded(c, data, payload._actor || 'system')
     recalcPhases(c)
     recordAuditUnsafe(data, {
       type: 'case.update',
@@ -814,6 +910,7 @@ export async function setLitigationStatus(id, status, actor = 'system') {
       }
       recordAuditUnsafe(data, { type:'case.litigation.set', caseId: id, clientName: c.clientName, from, to: norm, actor })
     }
+    seedPhase4TrialIfNeeded(c, data, actor)
     syncP1LopToDemand_mutate(data, c)
     recalcPhasesFromTasks(c)
     return c
