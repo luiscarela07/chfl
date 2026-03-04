@@ -58,7 +58,7 @@
       </div>
       <div class="text-xs text-gray-700">
         <span><strong>Type:</strong> <%= (item && item.typeOfCase) || (c && c.typeOfCase) || '-' %></span>
-        ? <span><strong>Incident:</strong> <%= (item && item.dateOfIncident) || (c && c.dateOfIncident) || '-' %></span>
+        • <span><strong>Incident:</strong> <%= (item && item.dateOfIncident) || (c && c.dateOfIncident) || '-' %></span>
       </div>
       <div class="text-xs text-gray-700">
         <span>Litigation: <strong><%= (c.litigationStatus||'pre')==='litigation'?'Litigation':'Pre Litigation' %></strong></span>
