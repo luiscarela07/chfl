@@ -15,6 +15,8 @@
   };
   const providerList = Array.isArray(providers) ? providers : [];
 
+  const fullName = [c.firstName, c.lastName].filter(Boolean).join(' ').trim() || c.clientName || '-';
+
   function categoryFor(title){
     const t = String(title || '').trim().toLowerCase();
     if (/^chiro\b/.test(t)) return 'chiro';
@@ -49,7 +51,11 @@
 <div class="sticky-title px-3 py-2">
   <div class="flex items-center justify-between">
     <div>
-      <h1 class="text-xl font-semibold text-gray-900"><%= c.clientName %></h1>
+      <h1 class="text-xl font-semibold text-gray-900"><%= fullName %></h1>
+      <div class="text-xs text-gray-700">
+        <span><strong>First Name:</strong> <%= c.firstName || '-' %></span>
+        • <span><strong>Last Name:</strong> <%= c.lastName || '-' %></span>
+      </div>
       <div class="text-xs text-gray-700">
         <span><strong>Type:</strong> <%= (item && item.typeOfCase) || (c && c.typeOfCase) || '-' %></span>
         ? <span><strong>Incident:</strong> <%= (item && item.dateOfIncident) || (c && c.dateOfIncident) || '-' %></span>

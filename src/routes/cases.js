@@ -64,7 +64,8 @@ router.get('/new', async (_req, res) => {
 router.post('/new', async (req, res) => {
   try {
     const created = await createCase({
-      clientName: req.body.client_name,
+      firstName: req.body.first_name,
+      lastName: req.body.last_name,
       status: req.body.status || 'Open',
       litigationStatus: req.body.litigation_status || 'pre',
       phase: parseInt(req.body.phase || '1', 10),
@@ -133,7 +134,8 @@ router.post('/:id/edit', async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
     await updateCase(id, {
-      clientName: req.body.client_name,
+      firstName: req.body.first_name,
+      lastName: req.body.last_name,
       phase: req.body.phase ? parseInt(req.body.phase, 10) : undefined,
       dueDate: req.body.due_date || undefined,
       litigationStatus: req.body.litigation_status || undefined,
@@ -461,7 +463,8 @@ export default router;
 router.post('/new', async (req, res) => {
   try {
     const created = await createCase({
-      clientName: req.body.client_name,
+      firstName: req.body.first_name,
+      lastName: req.body.last_name,
       status: req.body.status || 'Open',
       litigationStatus: req.body.litigation_status || 'pre',
       phase: parseInt(req.body.phase || '1', 10),

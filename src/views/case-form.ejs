@@ -9,9 +9,15 @@
 %>
 
 <form method="post" class="bg-white rounded-lg shadow border p-4 space-y-3">
-  <div>
-    <label class="block text-sm text-gray-600 mb-1">Client Name</label>
-    <input name="client_name" class="border rounded px-3 py-2 w-full" required value="<%= it.clientName || '' %>">
+  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+    <div>
+      <label class="block text-sm text-gray-600 mb-1">First Name</label>
+      <input name="first_name" class="border rounded px-3 py-2 w-full" required value="<%= it.firstName || '' %>">
+    </div>
+    <div>
+      <label class="block text-sm text-gray-600 mb-1">Last Name</label>
+      <input name="last_name" class="border rounded px-3 py-2 w-full" required value="<%= it.lastName || '' %>">
+    </div>
   </div>
 
   <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
