@@ -165,8 +165,7 @@ function displayName(c) {
                      const src = ok ? '/assets/icons/chlf-status-tree-green.svg' : '/assets/icons/chlf-status-tree-red.svg'
                      const tip = `Phase ${p}: ${ok?'Complete':'Not Complete'}`
                 %>
-                  <% const fill = ok ? '#16a34a' : '#ef4444'; %>
-<span class="inline-block align-middle rounded-full" title="<%= tip %>" aria-label="<%= tip %>" style="width:16px;height:16px;min-width:16px;min-height:16px;background-color:<%= fill %>;border:1px solid #d1d5db;"></span>
+                  <img src="<%= src %>" alt="<%= tip %>" title="<%= tip %>" aria-label="<%= tip %>" class="inline-block align-middle" style="width:16px;height:16px;min-width:16px;min-height:16px;">
 <% } %>
               </div>
             </td>
@@ -208,8 +207,7 @@ function displayName(c) {
           <% for (let p=1;p<=maxP;p++){ const ok = !!(c.phases||{})[p];
                const src = ok ? '/assets/icons/chlf-status-tree-green.svg' : '/assets/icons/chlf-status-tree-red.svg';
                const tip = `Phase ${p}: ${ok?'Complete':'Not Complete'}`; %>
-            <% const fill = ok ? '#16a34a' : '#ef4444'; %>
-<span class="inline-block align-middle rounded-full" title="<%= tip %>" aria-label="<%= tip %>" style="width:16px;height:16px;min-width:16px;min-height:16px;background-color:<%= fill %>;border:1px solid #d1d5db;"></span>
+            <img src="<%= src %>" alt="<%= tip %>" title="<%= tip %>" aria-label="<%= tip %>" class="inline-block align-middle" style="width:16px;height:16px;min-width:16px;min-height:16px;">
 <% } %>
         </div>
       </div>
