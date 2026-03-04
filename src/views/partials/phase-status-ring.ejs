@@ -1,0 +1,28 @@
+<%
+  // Inputs: total, done, title, size
+  const totalNum = Math.max(1, Number(total) || 1)
+  const doneNum = Math.max(0, Math.min(totalNum, Number(done) || 0))
+  const openNum = Math.max(0, totalNum - doneNum)
+  const px = Math.max(14, Number(size) || 20)
+  const stroke = Math.max(2, Math.round(px * 0.16))
+  const center = px / 2
+  const radius = center - (stroke / 2)
+  const circumference = 2 * Math.PI * radius
+  const doneLen = (doneNum / totalNum) * circumference
+  const openLen = (openNum / totalNum) * circumference
+  const tip = String(title || `Phase: ${doneNum}/${totalNum} complete`)
+%>
+<span class="inline-flex items-center" title="<%= tip %>">
+  <svg viewBox="0 0 <%= px %> <%= px %>" width="<%= px %>" height="<%= px %>" aria-label="<%= tip %>" role="img" class="inline-block align-middle">
+    <circle cx="<%= center %>" cy="<%= center %>" r="<%= radius %>" fill="none" stroke="#e5e7eb" stroke-width="<%= stroke %>" />
+    <% if (openLen > 0) { %>
+      <circle cx="<%= center %>" cy="<%= center %>" r="<%= radius %>" fill="none" stroke="#f87171" stroke-width="<%= stroke %>" stroke-linecap="round"
+              stroke-dasharray="<%= openLen %> <%= circumference %>" transform="rotate(-90 <%= center %> <%= center %>)" />
+    <% } %>
+    <% if (doneLen > 0) { %>
+      <circle cx="<%= center %>" cy="<%= center %>" r="<%= radius %>" fill="none" stroke="#16a34a" stroke-width="<%= stroke %>" stroke-linecap="round"
+              stroke-dasharray="<%= doneLen %> <%= circumference %>" transform="rotate(-90 <%= center %> <%= center %>)" />
+    <% } %>
+  </svg>
+  <span class="sr-only"><%= tip %></span>
+</span>
